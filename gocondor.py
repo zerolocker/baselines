@@ -46,17 +46,19 @@ def main(bg_run_creator_func):
        ("Venture"),
     ]
 
-    def fix_wrong_game_name(cmdstr):
-        return string.replace(cmdstr, 'mspacman.bin', 'ms_pacman.bin')
+    def fix_wrong_game_name(name):
+      name = str.capitalize(name)
+      if (name.lower() == 'mspacman'):
+        name = "MsPacman"
+      return name
 
     SH_FILE_DIR =  os.path.abspath('bgrun_yard')
     if not os.path.exists(SH_FILE_DIR):
       os.makedirs(SH_FILE_DIR)
     CHOSEN = [sys.argv[1]] if sys.argv[1] != 'all' else ALL_GAME_NAMES
     for GAME_NAME in CHOSEN:
-        sh_file_content = bg_run_creator_func(GAME_NAME)
-        sh_file_content = fix_wrong_game_name(sh_file_content)
-        print( sh_file_content)
+        sh_file_content = bg_run_creator_func(fix_wrong_game_name(GAME_NAME))
+        print(sh_file_content)
         raw_input('\nConfirm? Ctrl-C to quit.')
 
         sh_filename = "%s/%s_bgrun_%s.sh" % (SH_FILE_DIR, GAME_NAME, np.random.randint(65535))
@@ -70,7 +72,7 @@ def main(bg_run_creator_func):
         subprocess.call(['condor_submit', 'submit.condor'])
 
 model_to_func = {
-        "dqnNature8484": create_bgrun_sh_content_imgOf_model,
+        "dqnNature8484": create_bgrun_sh_content_dqnNature8484_model,
         }
 
 if len(sys.argv) < 3:
