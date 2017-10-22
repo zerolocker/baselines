@@ -1,7 +1,9 @@
 import cv2
 import gym
 import numpy as np
+import baselines.common.gflag as gflag
 
+from PIL import Image
 from collections import deque
 from gym import spaces
 
@@ -120,6 +122,19 @@ class MaxAndSkipEnv(gym.Wrapper):
         return obs
 
 
+class WarpFrame_from_atari_wrappers_py(gym.ObservationWrapper):
+    def __init__(self, env):
+        """Warp frames to 84x84 as done in the Nature paper and later work."""
+        gym.ObservationWrapper.__init__(self, env)
+        self.res = 84
+        self.observation_space = spaces.Box(low=0, high=255, shape=(self.res, self.res, 1))
+
+    def _observation(self, obs):
+        frame = np.dot(obs.astype('float32'), np.array([0.299, 0.587, 0.114], 'float32'))
+        frame = np.array(Image.fromarray(frame).resize((self.res, self.res),
+            resample=Image.BILINEAR), dtype=np.uint8)
+        return frame.reshape((self.res, self.res, 1))
+
 class ProcessFrame84(gym.ObservationWrapper):
     def __init__(self, env=None):
         super(ProcessFrame84, self).__init__(env)
@@ -214,7 +229,11 @@ def wrap_dqn(env):
     env = MaxAndSkipEnv(env, skip=4)
     if 'FIRE' in env.unwrapped.get_action_meanings():
         env = FireResetEnv(env)
-    env = ProcessFrame84(env)
+    if gflag.nature8484:
+        env = WarpFrame_from_atari_wrappers_py(env)
+    else:
+        env = ProcessFrame84(env)
+    print ("Using Nature preprocessing (flag nature8484) = ", gflag.nature8484)
     env = FrameStack(env, 4)
     env = ClippedRewardsWrapper(env)
     return env

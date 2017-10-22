@@ -8,6 +8,7 @@ import time
 import json
 
 import baselines.common.tf_util as U
+import baselines.common.gflag as gflag
 
 from baselines import logger
 from baselines import deepq
@@ -59,7 +60,12 @@ def parse_args():
                         help="It present data will saved/loaded from Azure. Should be in format ACCOUNT_NAME:ACCOUNT_KEY:CONTAINER")
     parser.add_argument("--save-freq", type=int, default=1e6, help="save model once every time this many iterations are completed")
     boolean_flag(parser, "load-on-start", default=True, help="if true and model was previously saved then training will be resumed")
-    return parser.parse_args()
+    
+    boolean_flag(parser, "nature8484", default=True, help=" resize frames to 84x84 as done in the Nature paper")
+
+    args = parser.parse_args()
+    gflag.init_me_as(args.__dict__)
+    return args
 
 
 def make_env(game_name):
