@@ -9,8 +9,8 @@ import baselines.common.tf_util as U
 
 from baselines import logger
 from baselines.common.schedules import LinearSchedule
-from baselines import deepq
-from baselines.deepq.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer
+from baselines import DeepqWithGaze
+from baselines.DeepqWithGaze.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer
 
 
 class ActWrapper(object):
@@ -22,7 +22,7 @@ class ActWrapper(object):
     def load(path, num_cpu=16):
         with open(path, "rb") as f:
             model_data, act_params = dill.load(f)
-        act = deepq.build_act(**act_params)
+        act = DeepqWithGaze.build_act(**act_params)
         sess = U.make_session(num_cpu=num_cpu)
         sess.__enter__()
         with tempfile.TemporaryDirectory() as td:
@@ -96,7 +96,7 @@ def learn(env,
           num_cpu=16,
           param_noise=False,
           callback=None):
-    """Train a deepq model.
+    """Train a DeepqWithGaze model.
 
     Parameters
     -------
@@ -161,7 +161,7 @@ def learn(env,
     -------
     act: ActWrapper
         Wrapper over act function. Adds ability to save it and load it.
-        See header of baselines/deepq/categorical.py for details on the act function.
+        See header of baselines/DeepqWithGaze/categorical.py for details on the act function.
     """
     # Create all the functions necessary to train the model
 
@@ -171,7 +171,7 @@ def learn(env,
     def make_obs_ph(name):
         return U.BatchInput(env.observation_space.shape, name=name)
 
-    act, train, update_target, debug = deepq.build_train(
+    act, train, update_target, debug = DeepqWithGaze.build_train(
         make_obs_ph=make_obs_ph,
         q_func=q_func,
         num_actions=env.action_space.n,

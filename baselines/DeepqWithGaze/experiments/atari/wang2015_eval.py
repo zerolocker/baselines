@@ -5,10 +5,10 @@ import os
 
 import baselines.common.tf_util as U
 
-from baselines import deepq
+from baselines import DeepqWithGaze
 from baselines.common.misc_util import get_wrapper_by_name, SimpleMonitor, boolean_flag, set_global_seeds
 from baselines.common.atari_wrappers_deprecated import wrap_dqn
-from baselines.deepq.experiments.atari.model import model, dueling_model
+from baselines.DeepqWithGaze.experiments.atari.model import model, dueling_model
 
 
 def make_env(game_name):
@@ -68,7 +68,7 @@ def main():
     args = parse_args()
     with U.make_session(4) as sess:  # noqa
         _, env = make_env(args.env)
-        act = deepq.build_act(
+        act = DeepqWithGaze.build_act(
             make_obs_ph=lambda name: U.Uint8Input(env.observation_space.shape, name=name),
             q_func=dueling_model if args.dueling else model,
             num_actions=env.action_space.n)

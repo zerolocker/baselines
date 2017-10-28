@@ -1,6 +1,6 @@
 import gym
 
-from baselines import deepq
+from baselines import DeepqWithGaze
 
 
 def callback(lcl, glb):
@@ -11,8 +11,8 @@ def callback(lcl, glb):
 
 def main():
     env = gym.make("CartPole-v0")
-    model = deepq.models.mlp([64])
-    act = deepq.learn(
+    model = DeepqWithGaze.models.mlp([64])
+    act = DeepqWithGaze.learn(
         env,
         q_func=model,
         lr=1e-3,

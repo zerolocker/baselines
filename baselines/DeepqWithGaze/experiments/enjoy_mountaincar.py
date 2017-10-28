@@ -1,11 +1,11 @@
 import gym
 
-from baselines import deepq
+from baselines import DeepqWithGaze
 
 
 def main():
     env = gym.make("MountainCar-v0")
-    act = deepq.load("mountaincar_model.pkl")
+    act = DeepqWithGaze.load("mountaincar_model.pkl")
 
     while True:
         obs, done = env.reset(), False

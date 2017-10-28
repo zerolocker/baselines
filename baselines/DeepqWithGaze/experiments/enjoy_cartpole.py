@@ -1,11 +1,11 @@
 import gym
 
-from baselines import deepq
+from baselines import DeepqWithGaze
 
 
 def main():
     env = gym.make("CartPole-v0")
-    act = deepq.load("cartpole_model.pkl")
+    act = DeepqWithGaze.load("cartpole_model.pkl")
 
     while True:
         obs, done = env.reset(), False

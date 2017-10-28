@@ -11,8 +11,8 @@ import baselines.common.tf_util as U
 import baselines.common.gflag as gflag
 
 from baselines import logger
-from baselines import deepq
-from baselines.deepq.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer
+from baselines import DeepqWithGaze
+from baselines.DeepqWithGaze.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer
 from baselines.common.misc_util import (
     boolean_flag,
     pickle_load,
@@ -34,7 +34,7 @@ def parse_args():
     parser = argparse.ArgumentParser("DQN experiments for Atari games")
     # Environment
     parser.add_argument("--env", type=str, default="Pong", help="name of the game")
-    parser.add_argument("--seed", type=int, default=42, help="which seed to use")
+    parser.add_argument("--seed", type=int, default=None, help="which seed to use. If set to None, use system deafult")
     # Core DQN parameters
     parser.add_argument("--replay-buffer-size", type=int, default=int(1e6), help="replay buffer size")
     parser.add_argument("--lr", type=float, default=1e-4, help="learning rate for Adam optimizer")
@@ -150,7 +150,7 @@ if __name__ == '__main__':
         def model_wrapper(img_in, num_actions, scope, **kwargs):
             actual_model = dueling_model if args.dueling else model
             return actual_model(img_in, num_actions, scope, layer_norm=args.layer_norm, **kwargs)
-        act, train, update_target, debug = deepq.build_train(
+        act, train, update_target, debug = DeepqWithGaze.build_train(
             make_obs_ph=lambda name: U.Uint8Input(env.observation_space.shape, name=name),
             q_func=model_wrapper,
             num_actions=env.action_space.n,
