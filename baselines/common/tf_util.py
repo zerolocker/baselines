@@ -226,7 +226,13 @@ def make_session(num_cpu):
         inter_op_parallelism_threads=num_cpu,
         intra_op_parallelism_threads=num_cpu)
     tf_config.gpu_options.allow_growth = True
-    return tf.Session(config=tf_config)
+    sess = tf.Session(config=tf_config)
+    try:
+        import keras
+        keras.backend.set_session(sess)
+    except ImportError:
+        pass
+    return sess
 
 
 def single_threaded_session():

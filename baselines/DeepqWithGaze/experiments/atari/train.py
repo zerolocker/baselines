@@ -148,13 +148,13 @@ if __name__ == '__main__':
         with open(os.path.join(savedir, 'args.json'), 'w') as f:
             json.dump(vars(args), f)
 
-    MU.keras_model_serialization_bug_fix()
-    gaze_model = K.models.load_model("baselines/DeepqWithGaze/ImgOnly_gazeModels/seaquest.hdf5")
-    pixel_mean_of_gaze_model_trainset = np.load("baselines/DeepqWithGaze/Img+OF_gazeModels/seaquest.mean.npy")
-    K.backend.set_learning_phase(0)
-    debug_gaze_in = None
     with U.make_session(4) as sess:
-        def tf_op_debug_setGazeIn(x):
+        MU.keras_model_serialization_bug_fix()
+        gaze_model = K.models.load_model("baselines/DeepqWithGaze/ImgOnly_gazeModels/seaquest.hdf5")
+        pixel_mean_of_gaze_model_trainset = np.load("baselines/DeepqWithGaze/Img+OF_gazeModels/seaquest.mean.npy")
+        K.backend.set_learning_phase(0)
+        debug_gaze_in = None
+        def tf_op_set_debug_tensor(x):
             global debug_gaze_in
             debug_gaze_in = x
             return x
@@ -170,7 +170,7 @@ if __name__ == '__main__':
             gaze_in_debug = tf.identity(gaze_in, name='gaze_in_debug') # used for extracting 
                     # the content of img_in in IPython console
             GHmap = gaze_model(gaze_in)
-            #debug_tensor = tf.py_func(tf_op_debug_setGazeIn, [GHmap], [tf.float32], stateful=True, name='debug_tensor')
+            #debug_tensor = tf.py_func(tf_op_set_debug_tensor, [GHmap*img_in], [tf.float32], stateful=True, name='debug_tensor')
             #with tf.control_dependencies(debug_tensor):
             img_and_gaze_combined = tf.concat([img_in, GHmap*img_in], axis=-1)
             logger.log("img_and_gaze_combined shape: " + str(img_and_gaze_combined.shape)) 
@@ -307,4 +307,5 @@ if __name__ == '__main__':
                 logger.log()
                 if time.time() - debug_embed_last_time > debug_embed_freq_sec:
                     print(list(map(np.linalg.norm,gaze_model.get_weights())))
+                    #embed()
                     debug_embed_last_time = time.time()

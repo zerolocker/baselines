@@ -12,6 +12,28 @@ def create_bgrun_sh_content_dqnNature8484_model(GAME_NAME):
   sh_file_content += 'wait\n'
   return sh_file_content
 
+def create_bgrun_sh_content_DeepqWithGaze_model(GAME_NAME):
+  sh_file_content = "source activate py36\n"
+  for run in range(3):
+    sh_file_content += ' '.join(['ipython', '-m baselines.DeepqWithGaze.experiments.atari.train', '--',
+      '--env', GAME_NAME,
+       '&\n'
+       ]
+      )
+  sh_file_content += 'wait\n'
+  return sh_file_content
+
+ALL_GAME_NAMES=[
+   ("Breakout"),
+   ("Centipede"),
+   ("Enduro"),
+   ("Freeway"),
+   ("MsPacman"),
+   ("Riverraid"),
+   ("Seaquest"),
+   ("Venture"),
+]
+
 def main(bg_run_creator_func):
     basestr="""
     # doc at : http://research.cs.wisc.edu/htcondor/manual/current/condor_submit.html
@@ -34,17 +56,6 @@ def main(bg_run_creator_func):
     priority = 1
     Queue
     """
-
-    ALL_GAME_NAMES=[
-       ("Breakout"),
-       ("Centipede"),
-       ("Enduro"),
-       ("Freeway"),
-       ("MsPacman"),
-       ("Riverraid"),
-       ("Seaquest"),
-       ("Venture"),
-    ]
 
     def fix_wrong_game_name(name):
       name = str.capitalize(name)
@@ -73,6 +84,7 @@ def main(bg_run_creator_func):
 
 model_to_func = {
         "dqnNature8484": create_bgrun_sh_content_dqnNature8484_model,
+        "DeepqWithGaze": create_bgrun_sh_content_DeepqWithGaze_model,
         }
 
 if len(sys.argv) < 3:
