@@ -6,6 +6,8 @@ import baselines.common.gflag as gflag
 from PIL import Image
 from collections import deque
 from gym import spaces
+from IPython import embed
+from scipy import misc
 
 
 class NoopResetEnv(gym.Wrapper):
@@ -131,8 +133,7 @@ class WarpFrame_from_atari_wrappers_py(gym.ObservationWrapper):
 
     def _observation(self, obs):
         frame = np.dot(obs.astype('float32'), np.array([0.299, 0.587, 0.114], 'float32'))
-        frame = np.array(Image.fromarray(frame).resize((self.res, self.res),
-            resample=Image.BILINEAR), dtype=np.uint8)
+        frame = misc.imresize(frame, [84, 84], interp='bilinear')
         return frame.reshape((self.res, self.res, 1))
 
 class ProcessFrame84(gym.ObservationWrapper):

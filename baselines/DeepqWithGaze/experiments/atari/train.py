@@ -2,14 +2,15 @@ import argparse
 import gym
 import numpy as np
 import os
-import tensorflow as tf
-import tempfile
-import time
-import json
+import tensorflow as tf, keras as K
+import tempfile, time, json
+import ipdb
 
 import baselines.common.tf_util as U
 import baselines.common.gflag as gflag
+import baselines.DeepqWithGaze.misc_utils as MU
 
+from IPython import embed
 from baselines import logger
 from baselines import DeepqWithGaze
 from baselines.DeepqWithGaze.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer
@@ -34,7 +35,7 @@ def parse_args():
     parser = argparse.ArgumentParser("DQN experiments for Atari games")
     # Environment
     parser.add_argument("--env", type=str, default="Pong", help="name of the game")
-    parser.add_argument("--seed", type=int, default=None, help="which seed to use. If set to None, use system deafult")
+    parser.add_argument("--seed", type=int, default=-1, help="which seed to use. If negative, use system deafult")
     # Core DQN parameters
     parser.add_argument("--replay-buffer-size", type=int, default=int(1e6), help="replay buffer size")
     parser.add_argument("--lr", type=float, default=1e-4, help="learning rate for Adam optimizer")
@@ -115,6 +116,8 @@ def maybe_load_model(savedir, container):
 
 
 if __name__ == '__main__':
+    debug_embed_last_time = time.time() # TODO this is temporary. delete it and its related code
+    debug_embed_freq_sec = 600
     args = parse_args()
     
     # Parse savedir and azure container.
@@ -145,11 +148,33 @@ if __name__ == '__main__':
         with open(os.path.join(savedir, 'args.json'), 'w') as f:
             json.dump(vars(args), f)
 
+    MU.keras_model_serialization_bug_fix()
+    gaze_model = K.models.load_model("baselines/DeepqWithGaze/ImgOnly_gazeModels/seaquest.hdf5")
+    pixel_mean_of_gaze_model_trainset = np.load("baselines/DeepqWithGaze/Img+OF_gazeModels/seaquest.mean.npy")
+    K.backend.set_learning_phase(0)
+    debug_gaze_in = None
     with U.make_session(4) as sess:
+        def tf_op_debug_setGazeIn(x):
+            global debug_gaze_in
+            debug_gaze_in = x
+            return x
         # Create training graph and replay buffer
         def model_wrapper(img_in, num_actions, scope, **kwargs):
+            # TODO the following is temporary. delete it and its related code
+            # (checked) input to gaze model is the same as training; 
+            # (checked) GHmap is reasonable; 
+            # (checked) the model variables are reused
+            # TODO the model is not trained (first search keras doc to know how to freeze weight)
             actual_model = dueling_model if args.dueling else model
-            return actual_model(img_in, num_actions, scope, layer_norm=args.layer_norm, **kwargs)
+            gaze_in = img_in - pixel_mean_of_gaze_model_trainset
+            gaze_in_debug = tf.identity(gaze_in, name='gaze_in_debug') # used for extracting 
+                    # the content of img_in in IPython console
+            GHmap = gaze_model(gaze_in)
+            #debug_tensor = tf.py_func(tf_op_debug_setGazeIn, [GHmap], [tf.float32], stateful=True, name='debug_tensor')
+            #with tf.control_dependencies(debug_tensor):
+            img_and_gaze_combined = tf.concat([img_in, GHmap*img_in], axis=-1)
+            logger.log("img_and_gaze_combined shape: " + str(img_and_gaze_combined.shape)) 
+            return actual_model(img_and_gaze_combined, num_actions, scope, layer_norm=args.layer_norm, **kwargs)
         act, train, update_target, debug = DeepqWithGaze.build_train(
             make_obs_ph=lambda name: U.Uint8Input(env.observation_space.shape, name=name),
             q_func=model_wrapper,
@@ -175,6 +200,7 @@ if __name__ == '__main__':
             replay_buffer = ReplayBuffer(args.replay_buffer_size)
 
         U.initialize()
+        gaze_model.load_weights('baselines/DeepqWithGaze/ImgOnly_gazeModels/seaquest.hdf5')
         update_target()
         num_iters = 0
 
@@ -279,3 +305,6 @@ if __name__ == '__main__':
                 logger.log()
                 logger.log("ETA: " + pretty_eta(int(steps_left / fps_estimate)))
                 logger.log()
+                if time.time() - debug_embed_last_time > debug_embed_freq_sec:
+                    print(list(map(np.linalg.norm,gaze_model.get_weights())))
+                    debug_embed_last_time = time.time()

@@ -68,7 +68,6 @@ class EzPickle(object):
 
 
 def set_global_seeds(i):
-    if i is None: return  # use system default in this case
     try:
         import tensorflow as tf
     except ImportError:
