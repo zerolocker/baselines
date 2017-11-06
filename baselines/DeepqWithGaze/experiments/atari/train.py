@@ -62,9 +62,7 @@ def parse_args():
     parser.add_argument("--save-freq", type=int, default=1e6, help="save model once every time this many iterations are completed")
     boolean_flag(parser, "load-on-start", default=True, help="if true and model was previously saved then training will be resumed")
     
-    boolean_flag(parser, "nature8484", default=True, help=" resize frames to 84x84 as done in the Nature paper")
-    boolean_flag(parser, "random_number_NoOp_when_reset", default=True, help="Sample initial states by taking random number of no-ops on reset. It's on in original OpenAI repo")
-
+    boolean_flag(parser, "being_used_to_generate_dataset", default=False, help="Whether atari_wrappers_deprecated.py#wrap_dqn() is being_used_to_generate_dataset. See its comment for details.")
     args = parser.parse_args()
     gflag.init_me_as(args.__dict__)
     return args
