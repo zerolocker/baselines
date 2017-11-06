@@ -63,11 +63,11 @@ def parse_args():
     boolean_flag(parser, "load-on-start", default=True, help="if true and model was previously saved then training will be resumed")
     
     boolean_flag(parser, "nature8484", default=True, help=" resize frames to 84x84 as done in the Nature paper")
+    boolean_flag(parser, "random_number_NoOp_when_reset", default=True, help="Sample initial states by taking random number of no-ops on reset. It's on in original OpenAI repo")
 
     args = parser.parse_args()
     gflag.init_me_as(args.__dict__)
     return args
-
 
 def make_env(game_name):
     env = gym.make(game_name + "NoFrameskip-v4")
@@ -246,6 +246,7 @@ if __name__ == '__main__':
             reset = False
             new_obs, rew, done, info = env.step(action)
             replay_buffer.add(obs, action, rew, new_obs, float(done))
+
             obs = new_obs
             if done:
                 num_iters_since_reset = 0

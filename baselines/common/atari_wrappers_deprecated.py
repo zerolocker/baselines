@@ -7,7 +7,6 @@ from PIL import Image
 from collections import deque
 from gym import spaces
 from IPython import embed
-from scipy import misc
 
 
 class NoopResetEnv(gym.Wrapper):
@@ -133,7 +132,8 @@ class WarpFrame_from_atari_wrappers_py(gym.ObservationWrapper):
 
     def _observation(self, obs):
         frame = np.dot(obs.astype('float32'), np.array([0.299, 0.587, 0.114], 'float32'))
-        frame = misc.imresize(frame, [84, 84], interp='bilinear')
+        frame = np.array(Image.fromarray(frame).resize((self.res, self.res),
+            resample=Image.BILINEAR), dtype=np.uint8)
         return frame.reshape((self.res, self.res, 1))
 
 class ProcessFrame84(gym.ObservationWrapper):
@@ -222,19 +222,22 @@ class ScaledFloatFrame(gym.ObservationWrapper):
         return np.array(obs).astype(np.float32) / 255.0
 
 
-def wrap_dqn(env):
+def wrap_dqn(env,
+             random_number_NoOp_when_reset=gflag.NoneOr.random_number_NoOp_when_reset,
+             nature8484=gflag.NoneOr.nature8484):
     """Apply a common set of wrappers for Atari games."""
     assert 'NoFrameskip' in env.spec.id
     env = EpisodicLifeEnv(env)
-    env = NoopResetEnv(env, noop_max=30)
+    if random_number_NoOp_when_reset: # NoopResetEnv randomly skips frames
+        env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)
     if 'FIRE' in env.unwrapped.get_action_meanings():
         env = FireResetEnv(env)
-    if gflag.nature8484:
+    if nature8484:
         env = WarpFrame_from_atari_wrappers_py(env)
     else:
         env = ProcessFrame84(env)
-    print ("Using Nature preprocessing (flag nature8484) = ", gflag.nature8484)
+    print ("Using Nature preprocessing (flag nature8484) = ", nature8484)
     env = FrameStack(env, 4)
     env = ClippedRewardsWrapper(env)
     return env

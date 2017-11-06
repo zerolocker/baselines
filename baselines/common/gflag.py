@@ -1,5 +1,10 @@
 """
 GFlag stands for "global flag".
+
+Example usage: 
+  gflag.dueling 
+  gflag.NoneOr.dueling (if dueling flag is not set, it's None)
+
 This file has two use cases:
 + Storing command line flags(i.e arguments)
   so that they can be universally accessible after importing this file.
@@ -12,7 +17,7 @@ This file has two use cases:
 """
 import sys
 
-class GFlag(object):
+class GFlag(object): 
   _dict = None # None denotes the uninitialized state
 
   def init_me_as(self, argsdict):
@@ -24,18 +29,27 @@ class GFlag(object):
   def add_read_only(self, name, val):
     if name not in GFlag._dict:
       GFlag._dict[name] = val
-    else:
+    elif GFlag._dict[name] != val:
       raise AttributeError("GFlag is immutable after initialization")
 
   def __getattr__(self, name):
     if GFlag._dict is None:
-      raise AttributeError("GFlag hasn't been initialized")
+      raise AttributeError("Flag named '%s' not found: GFlag hasn't been initialized." % name)
     if name not in GFlag._dict:
-      raise AttributeError("Flag named '%s' is not found in GFlag" % name)
+      raise AttributeError("Flag named '%s' not found in GFlag" % name)
     return GFlag._dict[name]
 
   def __setattr__(self, name, val):
     raise AttributeError("GFlag is immutable after initialization")
+
+  class GFlagOrNone(object): # If flag not found, return none rather than raise AttributeError
+    def __getattr__(self, name):
+      if (GFlag._dict is None) or (name not in GFlag._dict):
+        return None
+      return GFlag._dict[name]
+
+  NoneOr = GFlagOrNone()
+
 
 # Replace the module with the object to support simple syntax like 
 # `import gflag` `gflag.random_seed` `gflag.dueling` ...
