@@ -8,7 +8,7 @@ import time
 import json
 
 import baselines.common.tf_util as U
-import baselines.common.gflag as gflag
+from baselines.common.gflag import gflag
 
 from baselines import logger
 from baselines import deepq
@@ -140,6 +140,8 @@ if __name__ == '__main__':
         env = gym.wrappers.Monitor(env, os.path.join(savedir, 'gym_monitor'), force=True)
 
     if savedir:
+        if not os.path.exists(savedir): 
+            os.makedirs(savedir)
         with open(os.path.join(savedir, 'args.json'), 'w') as f:
             json.dump(vars(args), f)
 

@@ -1,22 +1,39 @@
 #!/usr/bin/env python
-import sys, re, os, subprocess, numpy as np, string
+import sys, re, os, subprocess, numpy as np, string, random, time
 
-def create_bgrun_sh_content_dqnNature8484_model(GAME_NAME):
+savedir_arg = lambda prefix: '--no-load-on-start --save-dir SaveDir/%s_%s_%05d' % (
+        prefix,time.strftime("%b%d"),random.randint(0,100000))
+
+def create_bgrun_sh_dqnNature_noDoubleQ_model(GAME_NAME):
   sh_file_content = "source activate py36\n"
-  for run in range(3):
+  for run_num in range(3):
     sh_file_content += ' '.join(['ipython', '-m baselines.deepq.experiments.atari.train', '--',
-      '--env', GAME_NAME,
+      '--env', GAME_NAME, '--no-double-q',
+      savedir_arg('dqn'),
        '&\n'
        ]
       )
   sh_file_content += 'wait\n'
   return sh_file_content
 
-def create_bgrun_sh_content_DeepqWithGaze_model(GAME_NAME):
+def create_bgrun_sh_DeepqWithGaze_model(GAME_NAME):
   sh_file_content = "source activate py36\n"
-  for run in range(3):
+  for run_num in range(3):
     sh_file_content += ' '.join(['ipython', '-m baselines.DeepqWithGaze.experiments.atari.train', '--',
       '--env', GAME_NAME,
+      savedir_arg('dqnHgaze'),
+      '&\n'
+       ]
+      )
+  sh_file_content += 'wait\n'
+  return sh_file_content
+
+def create_bgrun_sh_DeepqWithGaze_noDoubleQ_model(GAME_NAME):
+  sh_file_content = "source activate py36\n"
+  for run_num in range(3):
+    sh_file_content += ' '.join(['ipython', '-m baselines.DeepqWithGaze.experiments.atari.train', '--',
+      '--env', GAME_NAME, '--no-double-q',
+      savedir_arg('dqnHgazeNoDoubleQ'),
        '&\n'
        ]
       )
@@ -83,8 +100,9 @@ def main(bg_run_creator_func):
         subprocess.call(['condor_submit', 'submit.condor'])
 
 model_to_func = {
-        "dqnNature8484": create_bgrun_sh_content_dqnNature8484_model,
-        "DeepqWithGaze": create_bgrun_sh_content_DeepqWithGaze_model,
+        "dqnNature_noDoubleQ": create_bgrun_sh_dqnNature_noDoubleQ_model,
+        "DeepqWithGaze": create_bgrun_sh_DeepqWithGaze_model,
+        "DeepqWithGaze_noDoubleQ": create_bgrun_sh_DeepqWithGaze_noDoubleQ_model
         }
 
 if len(sys.argv) < 3:

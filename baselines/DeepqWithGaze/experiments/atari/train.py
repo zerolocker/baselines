@@ -142,13 +142,16 @@ if __name__ == '__main__':
         env = gym.wrappers.Monitor(env, os.path.join(savedir, 'gym_monitor'), force=True)
 
     if savedir:
+        if not os.path.exists(savedir): 
+            os.makedirs(savedir)
         with open(os.path.join(savedir, 'args.json'), 'w') as f:
             json.dump(vars(args), f)
 
     with U.make_session(4) as sess:
         MU.keras_model_serialization_bug_fix()
-        gaze_model = K.models.load_model("baselines/DeepqWithGaze/ImgOnly_gazeModels/seaquest.hdf5")
-        pixel_mean_of_gaze_model_trainset = np.load("baselines/DeepqWithGaze/Img+OF_gazeModels/seaquest.mean.npy")
+        # WARNING there's also a 'load_model' down below. Use the same path for both ! (TODO This is hacky; delete it and use some other way)
+        gaze_model = K.models.load_model("baselines/DeepqWithGaze/ImgOnly_gazeModels/seaquest-dp0.4-DQN+BNonInput.hdf5")
+        # pixel_mean_of_gaze_model_trainset = np.load("baselines/DeepqWithGaze/Img+OF_gazeModels/seaquest.mean.npy")
         K.backend.set_learning_phase(0)
         debug_gaze_in = None
         def tf_op_set_debug_tensor(x):
@@ -163,7 +166,7 @@ if __name__ == '__main__':
             # (checked) the model variables are reused
             # TODO the model is not trained (first search keras doc to know how to freeze weight)
             actual_model = dueling_model if args.dueling else model
-            gaze_in = img_in - pixel_mean_of_gaze_model_trainset
+            gaze_in = img_in # - pixel_mean_of_gaze_model_trainset unnecessary coz I im using BN-on-Input model
             gaze_in_debug = tf.identity(gaze_in, name='gaze_in_debug') # used for extracting 
                     # the content of img_in in IPython console
             GHmap = gaze_model(gaze_in)
@@ -197,7 +200,7 @@ if __name__ == '__main__':
             replay_buffer = ReplayBuffer(args.replay_buffer_size)
 
         U.initialize()
-        gaze_model.load_weights('baselines/DeepqWithGaze/ImgOnly_gazeModels/seaquest.hdf5')
+        gaze_model.load_weights('baselines/DeepqWithGaze/ImgOnly_gazeModels/seaquest-dp0.4-DQN+BNonInput.hdf5')
         update_target()
         num_iters = 0
 
