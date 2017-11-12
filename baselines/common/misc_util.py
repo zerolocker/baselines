@@ -6,6 +6,8 @@ import random
 import tempfile
 import time
 import zipfile
+from baselines.common.gflag import gflag
+from baselines import logger
 
 
 def zipsame(*seqs):
@@ -326,3 +328,55 @@ def pickle_load(path, compression=False):
     else:
         with open(path, "rb") as f:
             return pickle.load(f)
+
+
+def maybe_save_model(savedir, state):
+    """This function checkpoints the model and state of the training algorithm."""
+    if savedir is None:
+        return
+    start_time = time.time()
+    import subprocess # remove previously save models to save space
+    subprocess.call("rm -rf model-*", shell=True)
+    model_dir = "model-{}".format(state["num_iters"])
+    U.save_state(os.path.join(savedir, model_dir, "saved"))
+    if gflag.also_save_training_state:
+        relatively_safe_pickle_dump(state, os.path.join(savedir, 'training_state.pkl.zip'), compression=True)
+    relatively_safe_pickle_dump(state["monitor_state"], os.path.join(savedir, 'monitor_state.pkl'))
+    logger.log("Saved model in {} seconds\n".format(time.time() - start_time))
+
+
+def maybe_load_model(savedir):
+    """Load model if present at the specified path."""
+    if savedir is None:
+        return
+    state_path = os.path.join(os.path.join(savedir, 'training_state.pkl.zip'))
+    found_model = os.path.exists(state_path)
+    if found_model:
+        state = pickle_load(state_path, compression=True)
+        model_dir = "model-{}".format(state["num_iters"])
+        U.load_state(os.path.join(savedir, model_dir, "saved"))
+        logger.log("Loaded models checkpoint at {} iterations".format(state["num_iters"]))
+        return state
+
+
+def make_and_wrap_env(game_name, seed):
+    # when updating this to non-deperecated ones, it is important to
+    # copy over LazyFrames
+    from baselines.common.atari_wrappers_deprecated import wrap_dqn
+    env = gym.make(game_name + "NoFrameskip-v4")
+    monitored_env = SimpleMonitor(env)  # puts rewards and number of steps in info, before environment is wrapped
+    env = wrap_dqn(monitored_env)  # applies a bunch of modification to simplify the observation space (downsample, make b/w)
+    if seed > 0:
+        set_global_seeds(seed)
+        env.unwrapped.seed(seed)
+    if gflag.gym_monitor and gflag.save_dir:
+        env = gym.wrappers.Monitor(env, os.path.join(gflag.save_dir, 'gym_monitor'), force=True)
+    return env, monitored_env
+
+def make_save_dir_and_log_basics():
+    if gflag.save_dir:
+        os.makedirs(gflag.save_dir, exist_ok=True)
+    logger.configure(gflag.save_dir, format_strs=['log', 'stdout'])
+    logger.logkvs(gflag._dict)
+    logger.dumpkvs()
+    # TODO  copy related py files to save_dir that constitutes a snapshot of code being run

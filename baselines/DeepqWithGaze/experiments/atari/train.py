@@ -1,10 +1,4 @@
-import argparse
-import gym
-import numpy as np
-import os
-import tensorflow as tf, keras as K
-import tempfile, time, json
-import ipdb
+import argparse, gym, numpy as np, os, tensorflow as tf, keras as K, time, ipdb
 
 import baselines.common.tf_util as U
 from baselines.common.gflag import gflag
@@ -19,17 +13,16 @@ from baselines.common.misc_util import (
     pickle_load,
     pretty_eta,
     relatively_safe_pickle_dump,
-    set_global_seeds,
     RunningAvg,
-    SimpleMonitor
+    maybe_load_model,
+    maybe_save_model,
+    make_and_wrap_env,
+    make_save_dir_and_log_basics
 )
 from baselines.common.schedules import LinearSchedule, PiecewiseSchedule
-# when updating this to non-deperecated ones, it is important to
-# copy over LazyFrames
-from baselines.common.atari_wrappers_deprecated import wrap_dqn
-from baselines.common.azure_utils import Container
 from .model import model, dueling_model
 
+import matplotlib.pyplot as plt
 
 def parse_args():
     parser = argparse.ArgumentParser("DQN experiments for Atari games")
@@ -57,95 +50,19 @@ def parse_args():
     parser.add_argument("--prioritized-eps", type=float, default=1e-6, help="eps parameter for prioritized replay buffer")
     # Checkpointing
     parser.add_argument("--save-dir", type=str, default=None, help="directory in which training state and model should be saved.")
-    parser.add_argument("--save-azure-container", type=str, default=None,
-                        help="It present data will saved/loaded from Azure. Should be in format ACCOUNT_NAME:ACCOUNT_KEY:CONTAINER")
     parser.add_argument("--save-freq", type=int, default=1e6, help="save model once every time this many iterations are completed")
     boolean_flag(parser, "load-on-start", default=True, help="if true and model was previously saved then training will be resumed")
+    boolean_flag(parser, "also-save-training-state", default=False, help="if true also save training state (huge replay buffer) so that training will be resumed")
     
+    boolean_flag(parser, "debug-mode", default=False, help="if true ad-hoc debug-related code will be run and training may stop halfway")
     args = parser.parse_args()
     gflag.init_me_as(args.__dict__)
     return args
 
-def make_env(game_name):
-    env = gym.make(game_name + "NoFrameskip-v4")
-    monitored_env = SimpleMonitor(env)  # puts rewards and number of steps in info, before environment is wrapped
-    env = wrap_dqn(monitored_env)  # applies a bunch of modification to simplify the observation space (downsample, make b/w)
-    return env, monitored_env
-
-
-def maybe_save_model(savedir, container, state):
-    """This function checkpoints the model and state of the training algorithm."""
-    if savedir is None:
-        return
-    start_time = time.time()
-    model_dir = "model-{}".format(state["num_iters"])
-    U.save_state(os.path.join(savedir, model_dir, "saved"))
-    if container is not None:
-        container.put(os.path.join(savedir, model_dir), model_dir)
-    relatively_safe_pickle_dump(state, os.path.join(savedir, 'training_state.pkl.zip'), compression=True)
-    if container is not None:
-        container.put(os.path.join(savedir, 'training_state.pkl.zip'), 'training_state.pkl.zip')
-    relatively_safe_pickle_dump(state["monitor_state"], os.path.join(savedir, 'monitor_state.pkl'))
-    if container is not None:
-        container.put(os.path.join(savedir, 'monitor_state.pkl'), 'monitor_state.pkl')
-    logger.log("Saved model in {} seconds\n".format(time.time() - start_time))
-
-
-def maybe_load_model(savedir, container):
-    """Load model if present at the specified path."""
-    if savedir is None:
-        return
-
-    state_path = os.path.join(os.path.join(savedir, 'training_state.pkl.zip'))
-    if container is not None:
-        logger.log("Attempting to download model from Azure")
-        found_model = container.get(savedir, 'training_state.pkl.zip')
-    else:
-        found_model = os.path.exists(state_path)
-    if found_model:
-        state = pickle_load(state_path, compression=True)
-        model_dir = "model-{}".format(state["num_iters"])
-        if container is not None:
-            container.get(savedir, model_dir)
-        U.load_state(os.path.join(savedir, model_dir, "saved"))
-        logger.log("Loaded models checkpoint at {} iterations".format(state["num_iters"]))
-        return state
-
-
 if __name__ == '__main__':
-    debug_embed_last_time = time.time() # TODO this is temporary. delete it and its related code
-    debug_embed_freq_sec = 600
     args = parse_args()
-    
-    # Parse savedir and azure container.
-    savedir = args.save_dir
-    if savedir is None:
-        savedir = os.getenv('OPENAI_LOGDIR', None)
-    if args.save_azure_container is not None:
-        account_name, account_key, container_name = args.save_azure_container.split(":")
-        container = Container(account_name=account_name,
-                              account_key=account_key,
-                              container_name=container_name,
-                              maybe_create=True)
-        if savedir is None:
-            # Careful! This will not get cleaned up. Docker spoils the developers.
-            savedir = tempfile.TemporaryDirectory().name
-    else:
-        container = None
-    # Create and seed the env.
-    env, monitored_env = make_env(args.env)
-    if args.seed > 0:
-        set_global_seeds(args.seed)
-        env.unwrapped.seed(args.seed)
-
-    if args.gym_monitor and savedir:
-        env = gym.wrappers.Monitor(env, os.path.join(savedir, 'gym_monitor'), force=True)
-
-    if savedir:
-        if not os.path.exists(savedir): 
-            os.makedirs(savedir)
-        with open(os.path.join(savedir, 'args.json'), 'w') as f:
-            json.dump(vars(args), f)
+    make_save_dir_and_log_basics()
+    env, monitored_env = make_and_wrap_env(args.env, args.seed)
 
     with U.make_session(4) as sess:
         MU.keras_model_serialization_bug_fix()
@@ -153,26 +70,26 @@ if __name__ == '__main__':
         gaze_model = K.models.load_model("baselines/DeepqWithGaze/ImgOnly_gazeModels/seaquest-dp0.4-DQN+BNonInput.hdf5")
         # pixel_mean_of_gaze_model_trainset = np.load("baselines/DeepqWithGaze/Img+OF_gazeModels/seaquest.mean.npy")
         K.backend.set_learning_phase(0)
-        debug_gaze_in = None
-        def tf_op_set_debug_tensor(x):
-            global debug_gaze_in
-            debug_gaze_in = x
-            return x
+        if args.debug_mode:
+            debug_gaze_in = None 
+            #debug_saved_gaze_in = []
+            def tf_op_set_debug_tensor(x):
+                global debug_gaze_in
+                debug_gaze_in = x
+                #debug_saved_gaze_in.append(np.copy(x))
+                return x
         # Create training graph and replay buffer
         def model_wrapper(img_in, num_actions, scope, **kwargs):
-            # TODO the following is temporary. delete it and its related code
-            # (checked) input to gaze model is the same as training; 
-            # (checked) GHmap is reasonable; 
-            # (checked) the model variables are reused
-            # TODO the model is not trained (first search keras doc to know how to freeze weight)
+            # TODO check GHmap is reasonable when evaluating
             actual_model = dueling_model if args.dueling else model
             gaze_in = img_in # - pixel_mean_of_gaze_model_trainset unnecessary coz I im using BN-on-Input model
-            gaze_in_debug = tf.identity(gaze_in, name='gaze_in_debug') # used for extracting 
-                    # the content of img_in in IPython console
             GHmap = gaze_model(gaze_in)
-            #debug_tensor = tf.py_func(tf_op_set_debug_tensor, [GHmap*img_in], [tf.float32], stateful=True, name='debug_tensor')
-            #with tf.control_dependencies(debug_tensor):
-            img_and_gaze_combined = tf.concat([img_in, GHmap*img_in], axis=-1)
+            if args.debug_mode:
+                debug_tensor = tf.py_func(tf_op_set_debug_tensor, [tf.concat([img_in, GHmap], axis=-1)], [tf.float32], stateful=True, name='debug_tensor')
+                with tf.control_dependencies(debug_tensor):
+                    img_and_gaze_combined = tf.concat([img_in, GHmap*img_in], axis=-1)
+            else:
+                img_and_gaze_combined = tf.concat([img_in, GHmap*img_in], axis=-1)
             logger.log("img_and_gaze_combined shape: " + str(img_and_gaze_combined.shape)) 
             return actual_model(img_and_gaze_combined, num_actions, scope, layer_norm=args.layer_norm, **kwargs)
         act, train, update_target, debug = DeepqWithGaze.build_train(
@@ -204,11 +121,11 @@ if __name__ == '__main__':
         update_target()
         num_iters = 0
 
-        # Load the model
-        state = maybe_load_model(savedir, container)
-        if state is not None:
-            num_iters, replay_buffer = state["num_iters"], state["replay_buffer"],
-            monitored_env.set_state(state["monitor_state"])
+        if args.load_on_start: # Load the model
+            state = maybe_load_model(gflag.save_dir)
+            if state is not None:
+                num_iters, replay_buffer = state["num_iters"], state["replay_buffer"],
+                monitored_env.set_state(state["monitor_state"])
 
         start_time, start_steps = None, None
         steps_per_iter = RunningAvg(0.999)
@@ -218,9 +135,22 @@ if __name__ == '__main__':
         reset = True
 
         # Main trianing loop
+        if args.debug_mode:
+            fig, axarr = plt.subplots(2,3) # TODO debug only
+            debug_embed_last_time = time.time() # TODO this is temporary. delete it and its related code
+            debug_embed_freq_sec = 10
         while True:
             num_iters += 1
             num_iters_since_reset += 1
+            if args.debug_mode and debug_gaze_in is not None:
+                for i in range(4):
+                    axarr[int(i/2), i%2].imshow(debug_gaze_in[0,:,:,i]) 
+                axarr[1,2].imshow(debug_gaze_in[0,:,:,4]) 
+                plt.pause(0.1)
+
+            if args.debug_mode and time.time() - debug_embed_last_time > debug_embed_freq_sec:
+                embed()
+                debug_embed_last_time = time.time()
 
             # Take action and store transition in the replay buffer.
             kwargs = {}
@@ -279,7 +209,7 @@ if __name__ == '__main__':
 
             # Save the model and training state.
             if num_iters > 0 and (num_iters % args.save_freq == 0 or info["steps"] > args.num_steps):
-                maybe_save_model(savedir, container, {
+                maybe_save_model(gflag.save_dir, {
                     'replay_buffer': replay_buffer,
                     'num_iters': num_iters,
                     'monitor_state': monitored_env.get_state(),
@@ -306,7 +236,3 @@ if __name__ == '__main__':
                 logger.log()
                 logger.log("ETA: " + pretty_eta(int(steps_left / fps_estimate)))
                 logger.log()
-                if time.time() - debug_embed_last_time > debug_embed_freq_sec:
-                    print(list(map(np.linalg.norm,gaze_model.get_weights())))
-                    #embed()
-                    debug_embed_last_time = time.time()
