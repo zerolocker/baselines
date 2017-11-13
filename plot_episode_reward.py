@@ -9,15 +9,17 @@ import os
 
 def main():
   parser = argparse.ArgumentParser('You must specify a (model) name for each file. ' +
+          'e.g. 23456.out Dqn 23486.out DqnWithGaze ... \n' + 
     ' np.max() is used to aggregate rewards in a episode.')
-  parser.add_argument('file', nargs='+')
-  parser.add_argument('--name', nargs='+', required=True)
+  parser.add_argument('file_and_name', metavar='file_and_name_seperated_by_a_space', nargs = '+')
   args = parser.parse_args()
-  assert(len(args.file) == len(args.name))
+  assert(len(args.file_and_name)%2==0)
+  n = len(args.file_and_name)/2
+  files = args.file_and_name[0:n+1:2]
+  names =  args.file_and_name[1:n+2:2]
 
-  n = len(args.file)
   color = iter(cm.rainbow(np.linspace(0,1,n)))
-  for (file, name) in zip(args.file, args.name):
+  for (file, name) in zip(files, names):
     myplot(file, next(color), name)
   finalize_plot_and_show()
 
