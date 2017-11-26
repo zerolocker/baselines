@@ -1,39 +1,30 @@
 #!/usr/bin/env python
 import sys, re, os, subprocess, numpy as np, string, random, time
 
-savedir_arg = lambda prefix: '--no-load-on-start --save-dir SaveDir/%s_%s_%05d' % (
+def savedir_arg(MODEL_NAME):
+  MODEL_NICKNAME = sys.argv[3]
+  prefix = MODEL_NAME+'_'+MODEL_NICKNAME
+  return '--no-load-on-start --save-dir SaveDir/%s_%s_%05d' % (
         prefix,time.strftime("%b%d"),random.randint(0,100000))
 
 def create_bgrun_sh_dqnNature_noDoubleQ_model(GAME_NAME):
-  sh_file_content = "source activate py36\n"
+  sh_file_content = "" 
   for run_num in range(3):
-    sh_file_content += ' '.join(['ipython', '-m baselines.deepq.experiments.atari.train', '--',
+    sh_file_content += ' '.join(['python3', '-m baselines.deepq.experiments.atari.train',
       '--env', GAME_NAME, '--no-double-q',
-      savedir_arg('dqn'),
+      # savedir_arg('dqn'), # commented because I've not yest tested if deepq/.../train.py works well with --save-dir, but saving model is not very important for now. I'll just leave it commented. Maybe test it in the future.
        '&\n'
        ]
       )
   sh_file_content += 'wait\n'
   return sh_file_content
 
-def create_bgrun_sh_DeepqWithGaze_model(GAME_NAME):
-  sh_file_content = "source activate py36\n"
-  for run_num in range(3):
-    sh_file_content += ' '.join(['ipython', '-m baselines.DeepqWithGaze.experiments.atari.train', '--',
-      '--env', GAME_NAME,
-      savedir_arg('dqnHgaze'),
-      '&\n'
-       ]
-      )
-  sh_file_content += 'wait\n'
-  return sh_file_content
-
 def create_bgrun_sh_DeepqWithGaze_noDoubleQ_model(GAME_NAME):
-  sh_file_content = "source activate py36\n"
+  sh_file_content = ""
   for run_num in range(3):
-    sh_file_content += ' '.join(['ipython', '-m baselines.DeepqWithGaze.experiments.atari.train', '--',
+    sh_file_content += ' '.join(['python3', '-m baselines.DeepqWithGaze.experiments.atari.train',
       '--env', GAME_NAME, '--no-double-q',
-      savedir_arg('dqnHgazeNoDoubleQ'),
+      savedir_arg('dqnHgaze'),
        '&\n'
        ]
       )
@@ -55,7 +46,7 @@ def main(bg_run_creator_func):
     basestr="""
     # doc at : http://research.cs.wisc.edu/htcondor/manual/current/condor_submit.html
     arguments = {0}
-    remote_initialdir = /scratch/cluster/zhuode93/oai-baseline/
+    remote_initialdir = /scratch/cluster/zharucs/oai-baseline
     +Group ="GRAD"
     +Project ="AI_ROBOTICS"
     +ProjectDescription="ale"
@@ -63,7 +54,7 @@ def main(bg_run_creator_func):
     Universe = vanilla
 
     # UTCS has 18 such machine, to take a look, run 'condor_status  -constraint 'GTX1080==true' 
-    Requirements=(TARGET.GTX1080== true)
+    Requirements=(TARGET.Cuda8== true)
 
     executable = /bin/bash 
     getenv = true
@@ -101,12 +92,11 @@ def main(bg_run_creator_func):
 
 model_to_func = {
         "dqnNature_noDoubleQ": create_bgrun_sh_dqnNature_noDoubleQ_model,
-        "DeepqWithGaze": create_bgrun_sh_DeepqWithGaze_model,
         "DeepqWithGaze_noDoubleQ": create_bgrun_sh_DeepqWithGaze_noDoubleQ_model
         }
 
-if len(sys.argv) < 3:
-  print("Usage: %s <GAME_NAME|all> <MODEL_NAME>" % __file__)
+if len(sys.argv) < 4:
+  print("Usage: %s <GAME_NAME|all> <MODEL_NAME> <YOUR_MODEL_NICKNAME>" % __file__)
   print("'all' means run all games:", ALL_GAME_NAMES)
   print("Supported MODEL_NAME are: " , model_to_func.keys())
   sys.exit(1)

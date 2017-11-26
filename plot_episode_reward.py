@@ -45,7 +45,7 @@ def myplot(file, color, name):
 def finalize_plot_and_show():
   plt.xlabel("Episode")
   plt.ylabel("Reward")
-  plt.legend()
+  plt.legend(loc='upper left')
   plt.show()
 
 

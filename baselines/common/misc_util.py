@@ -6,9 +6,9 @@ import random
 import tempfile
 import time
 import zipfile
+from baselines.common import tf_util as U
 from baselines.common.gflag import gflag
 from baselines import logger
-
 
 def zipsame(*seqs):
     L = len(seqs[0])
@@ -375,7 +375,11 @@ def make_and_wrap_env(game_name, seed):
 
 def make_save_dir_and_log_basics():
     if gflag.save_dir:
-        os.makedirs(gflag.save_dir, exist_ok=True)
+        assert not os.path.exists(gflag.save_dir), "save_dir %s already exists. " + \
+          "This could due to condor killed and reschedule the original task. " + \
+          "However, the .py files might be changed since the last run, so the model can be changed." + \
+          "To prevent log.txt being overwritten/appended possibly wrong model's log, program will exit now."
+        os.makedirs(gflag.save_dir, exist_ok=False)
     logger.configure(gflag.save_dir, format_strs=['log', 'stdout'])
     logger.logkvs(gflag._dict)
     logger.dumpkvs()
