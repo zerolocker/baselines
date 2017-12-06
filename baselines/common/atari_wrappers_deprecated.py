@@ -8,6 +8,10 @@ from collections import deque
 from gym import spaces
 from IPython import embed
 
+# If you change this file, remember to sync it with
+# https://github.com/corgiTrax/Arcade-Learning-Environment/blob/master/shared/copy_atari_wrappers_deprecated.py
+# The above file is used to guarantee the trained gaze model having the same preprocessing as when running DQN.
+
 class NoopResetEnv(gym.Wrapper):
     def __init__(self, env=None, noop_max=30):
         """Sample initial states by taking random number of no-ops on reset.
