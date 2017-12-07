@@ -375,12 +375,13 @@ def make_and_wrap_env(game_name, seed):
 
 def make_save_dir_and_log_basics():
     if gflag.save_dir:
-        assert not os.path.exists(gflag.save_dir), "save_dir %s already exists. " + \
-          "This could due to condor killed and reschedule the original task. " + \
-          "However, the .py files might be changed since the last run, so the model can be changed." + \
-          "To prevent log.txt being overwritten/appended possibly wrong model's log, program will exit now."
+        assert not os.path.exists(gflag.save_dir), "save_dir '%s' already exists. " % (gflag.save_dir) + \
+          "This might be because condor killed and rescheduled the original task. " + \
+          "To prevent log.txt being overwritten/appended by a possibly different model's log " + \
+          "(because the .py files might have been changed since the last run), the program will terminate now." 
         os.makedirs(gflag.save_dir, exist_ok=False)
     logger.configure(gflag.save_dir, format_strs=['log', 'stdout'])
     logger.logkvs(gflag._dict)
     logger.dumpkvs()
+    logger.log("TODO  copy related py files to save_dir that constitutes a snapshot of code being run")
     # TODO  copy related py files to save_dir that constitutes a snapshot of code being run
