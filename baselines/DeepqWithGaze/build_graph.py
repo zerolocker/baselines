@@ -95,6 +95,7 @@ The functions in this file can are used to create the following functions:
 """
 import tensorflow as tf
 import baselines.common.tf_util as U
+from baselines.common.gflag import gflag
 
 
 def default_param_noise_filter(var):
@@ -144,6 +145,9 @@ def build_act(make_obs_ph, q_func, num_actions, scope="DeepqWithGaze", reuse=Non
     """
     with tf.variable_scope(scope, reuse=reuse):
         observations_ph = U.ensure_tf_input(make_obs_ph("observation"))
+
+        gflag.add_read_only('obs_ph',observations_ph)
+
         stochastic_ph = tf.placeholder(tf.bool, (), name="stochastic")
         update_eps_ph = tf.placeholder(tf.float32, (), name="update_eps")
 
@@ -163,6 +167,7 @@ def build_act(make_obs_ph, q_func, num_actions, scope="DeepqWithGaze", reuse=Non
                          outputs=output_actions,
                          givens={update_eps_ph: -1.0, stochastic_ph: True},
                          updates=[update_eps_expr])
+
         return act
 
 
