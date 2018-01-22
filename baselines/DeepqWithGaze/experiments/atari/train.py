@@ -55,6 +55,7 @@ def parse_args():
     boolean_flag(parser, "also-save-training-state", default=False, help="if true also save training state (huge replay buffer) so that training will be resumed")
     
     boolean_flag(parser, "debug-mode", default=False, help="if true ad-hoc debug-related code will be run and training may stop halfway")
+    parser.add_argument("--ghmap-multiplier", type=int, default=16, help="multiply ghmap by this number to enlarge the scale")
     args = parser.parse_args()
     gflag.init_me_as(args.__dict__)
     return args
@@ -83,11 +84,11 @@ if __name__ == '__main__':
             # TODO check GHmap is reasonable when evaluating
             actual_model = dueling_model if args.dueling else model
             gaze_in = img_in # - pixel_mean_of_gaze_model_trainset unnecessary coz I im using BN-on-Input model
-            GHmap = gaze_model(gaze_in)
+            GHmap = gaze_model(gaze_in) * gflag.ghmap_multiplier
             if args.debug_mode:
                 debug_tensor = tf.py_func(tf_op_set_debug_tensor, [tf.concat([img_in, GHmap], axis=-1)], [tf.float32], stateful=True, name='debug_tensor')
                 with tf.control_dependencies(debug_tensor):
-                    img_and_gaze_combined = tf.concat([img_in, GHmap*img_in*16], axis=-1)
+                    img_and_gaze_combined = tf.concat([img_in, GHmap*img_in], axis=-1)
             else:
                 img_and_gaze_combined = tf.concat([img_in, GHmap*img_in], axis=-1)
             logger.log("img_and_gaze_combined shape: " + str(img_and_gaze_combined.shape)) 

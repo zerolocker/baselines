@@ -13,9 +13,9 @@ def create_bgrun_sh_dqnNature_noDoubleQ_model(GAME_NAME):
     sh_file_content += ' '.join(['python3', '-m baselines.deepq.experiments.atari.train',
       '--env', GAME_NAME, '--no-double-q',
       # savedir_arg('dqn'), # commented because I've not yest tested if deepq/.../train.py works well with --save-dir, but saving model is not very important for now. I'll just leave it commented. Maybe test it in the future.
-       '&\n'
-       ]
-      )
+       ] + OTHER_PARAMETERS_TO_PASS)
+       
+    sh_file_content += ' &\n'
   sh_file_content += 'wait\n'
   return sh_file_content
 
@@ -25,9 +25,8 @@ def create_bgrun_sh_DeepqWithGaze_noDoubleQ_model(GAME_NAME):
     sh_file_content += ' '.join(['python3', '-m baselines.DeepqWithGaze.experiments.atari.train',
       '--env', GAME_NAME, '--no-double-q',
       savedir_arg('dqnHgaze'),
-       '&\n'
-       ]
-      )
+      ] + OTHER_PARAMETERS_TO_PASS)
+    sh_file_content += ' &\n'
   sh_file_content += 'wait\n'
   return sh_file_content
 
@@ -96,11 +95,12 @@ model_to_func = {
         }
 
 if len(sys.argv) < 4:
-  print("Usage: %s <GAME_NAME|all> <MODEL_NAME> <YOUR_MODEL_NICKNAME>" % __file__)
+  print("Usage: %s <GAME_NAME|all> <MODEL_NAME> <YOUR_MODEL_NICKNAME> <OTHER_PARAMETERS_TO_PASS>" % __file__)
   print("'all' means run all games:", ALL_GAME_NAMES)
   print("Supported MODEL_NAME are: " , model_to_func.keys())
   sys.exit(1)
 
+OTHER_PARAMETERS_TO_PASS = sys.argv[4:] # TODO: refactor this and be less hacky
 if sys.argv[2] in model_to_func:
     print( "Job output will be directed to folder ./CondorOutput")
     if not os.path.exists("CondorOutput"):
