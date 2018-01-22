@@ -1,8 +1,5 @@
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
-from baselines import logger
-from baselines.common.gflag import gflag
-import baselines.common.tf_util as U
 
 
 def layer_norm_fn(x, relu=True):
@@ -14,20 +11,20 @@ def layer_norm_fn(x, relu=True):
 
 def model(img_in, num_actions, scope, reuse=False, layer_norm=False):
     """As described in https://storage.googleapis.com/deepmind-data/assets/papers/DeepMindNature14236Paper.pdf"""
-    obs_ph = gflag.__getattr__('obs_ph')
     with tf.variable_scope(scope, reuse=reuse):
-        out = img_in
-        out = layers.batch_norm(out, center=True, scale=True, reuse=reuse, epsilon=gflag.batchnorm_eps, scope="batchnorm")
-        inputLN = U.function(inputs=[obs_ph], outputs=out)
-        if not gflag.exists(U.absolute_scope_name(scope)+'_inputLN'):
-          gflag.add_read_only(U.absolute_scope_name(scope)+'_inputLN', inputLN)
-        logger.log("DEBUG: adding batch_norm on top of input layer")
-        with tf.variable_scope("convnet"):
+        x = img_in[...,0:4]
+        g = img_in[...,4:8]
+        with tf.variable_scope("convnet_x"):
             # original architecture
-            out = layers.convolution2d(out, num_outputs=32, kernel_size=8, stride=4, activation_fn=tf.nn.relu)
-            out = layers.convolution2d(out, num_outputs=64, kernel_size=4, stride=2, activation_fn=tf.nn.relu)
-            out = layers.convolution2d(out, num_outputs=64, kernel_size=3, stride=1, activation_fn=tf.nn.relu)
-        conv_out = layers.flatten(out)
+            x = layers.convolution2d(x, num_outputs=32, kernel_size=8, stride=4, activation_fn=tf.nn.relu)
+            x = layers.convolution2d(x, num_outputs=64, kernel_size=4, stride=2, activation_fn=tf.nn.relu)
+            x = layers.convolution2d(x, num_outputs=64, kernel_size=3, stride=1, activation_fn=tf.nn.relu)
+        with tf.variable_scope("convnet_g"):
+            # original architecture
+            g = layers.convolution2d(g, num_outputs=32, kernel_size=8, stride=4, activation_fn=tf.nn.relu)
+            g = layers.convolution2d(g, num_outputs=64, kernel_size=4, stride=2, activation_fn=tf.nn.relu)
+            g = layers.convolution2d(g, num_outputs=64, kernel_size=3, stride=1, activation_fn=tf.nn.relu)
+        conv_out = layers.flatten(x+g)
 
         with tf.variable_scope("action_value"):
             value_out = layers.fully_connected(conv_out, num_outputs=512, activation_fn=None)
@@ -41,14 +38,8 @@ def model(img_in, num_actions, scope, reuse=False, layer_norm=False):
 
 def dueling_model(img_in, num_actions, scope, reuse=False, layer_norm=False):
     """As described in https://arxiv.org/abs/1511.06581"""
-    obs_ph = gflag.__getattr__('obs_ph')
     with tf.variable_scope(scope, reuse=reuse):
         out = img_in
-        out = layers.batch_norm(out, center=True, scale=True, reuse=reuse, epsilon=gflag.batchnorm_eps, scope="batchnorm")
-        inputLN = U.function(inputs=[obs_ph], outputs=out)
-        if not gflag.exists(U.absolute_scope_name(scope)+'_inputLN'):
-          gflag.add_read_only(U.absolute_scope_name(scope)+'_inputLN', inputLN)
-        logger.log("DEBUG: adding batch_norm on top of input layer")
         with tf.variable_scope("convnet"):
             # original architecture
             out = layers.convolution2d(out, num_outputs=32, kernel_size=8, stride=4, activation_fn=tf.nn.relu)

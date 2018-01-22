@@ -55,7 +55,6 @@ def parse_args():
     boolean_flag(parser, "also-save-training-state", default=False, help="if true also save training state (huge replay buffer) so that training will be resumed")
     
     boolean_flag(parser, "debug-mode", default=False, help="if true ad-hoc debug-related code will be run and training may stop halfway")
-    parser.add_argument("--batchnorm-eps", type=float, default=1e-8, help="eps for batch norm on input ([img,GHmap*img]) ")
     args = parser.parse_args()
     gflag.init_me_as(args.__dict__)
     return args
@@ -88,7 +87,7 @@ if __name__ == '__main__':
             if args.debug_mode:
                 debug_tensor = tf.py_func(tf_op_set_debug_tensor, [tf.concat([img_in, GHmap], axis=-1)], [tf.float32], stateful=True, name='debug_tensor')
                 with tf.control_dependencies(debug_tensor):
-                    img_and_gaze_combined = tf.concat([img_in, GHmap*img_in], axis=-1)
+                    img_and_gaze_combined = tf.concat([img_in, GHmap*img_in*16], axis=-1)
             else:
                 img_and_gaze_combined = tf.concat([img_in, GHmap*img_in], axis=-1)
             logger.log("img_and_gaze_combined shape: " + str(img_and_gaze_combined.shape)) 
@@ -137,18 +136,17 @@ if __name__ == '__main__':
 
         # Main trianing loop
         if args.debug_mode:
-            #fig, axarr = plt.subplots(2,3) # TODO debug only
+            fig, axarr = plt.subplots(2,3) # TODO debug only
             debug_embed_last_time = time.time() # TODO this is temporary. delete it and its related code
             debug_embed_freq_sec = 10
         while True:
             num_iters += 1
             num_iters_since_reset += 1
             if args.debug_mode and debug_gaze_in is not None:
-                pass
-                #for i in range(4):
-                #    axarr[int(i/2), i%2].imshow(debug_gaze_in[0,:,:,i]) 
-                #axarr[1,2].imshow(debug_gaze_in[0,:,:,4]) 
-                #plt.pause(0.1)
+                for i in range(4):
+                    axarr[int(i/2), i%2].imshow(debug_gaze_in[0,:,:,i]) 
+                axarr[1,2].imshow(debug_gaze_in[0,:,:,4]) 
+                plt.pause(0.1)
 
             if args.debug_mode and time.time() - debug_embed_last_time > debug_embed_freq_sec:
                 embed()

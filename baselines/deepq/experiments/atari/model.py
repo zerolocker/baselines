@@ -1,6 +1,5 @@
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
-from baselines import logger
 
 
 def layer_norm_fn(x, relu=True):
@@ -15,8 +14,6 @@ def model(img_in, num_actions, scope, reuse=False, layer_norm=False):
     with tf.variable_scope(scope, reuse=reuse):
         out = img_in
         with tf.variable_scope("convnet"):
-            logger.log("DEBUG: adding batch_norm on top of input layer")
-            out = layers.batch_norm(out, center=True, scale=True, reuse=reuse, scope="batchnorm")
             # original architecture
             out = layers.convolution2d(out, num_outputs=32, kernel_size=8, stride=4, activation_fn=tf.nn.relu)
             out = layers.convolution2d(out, num_outputs=64, kernel_size=4, stride=2, activation_fn=tf.nn.relu)
@@ -38,8 +35,6 @@ def dueling_model(img_in, num_actions, scope, reuse=False, layer_norm=False):
     with tf.variable_scope(scope, reuse=reuse):
         out = img_in
         with tf.variable_scope("convnet"):
-            logger.log("DEBUG: adding batch_norm on top of input layer")
-            out = layers.batch_norm(out, center=True, scale=True, reuse=reuse, scope="batchnorm")
             # original architecture
             out = layers.convolution2d(out, num_outputs=32, kernel_size=8, stride=4, activation_fn=tf.nn.relu)
             out = layers.convolution2d(out, num_outputs=64, kernel_size=4, stride=2, activation_fn=tf.nn.relu)
