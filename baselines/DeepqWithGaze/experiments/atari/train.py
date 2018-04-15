@@ -20,7 +20,7 @@ from baselines.common.misc_util import (
     make_save_dir_and_log_basics
 )
 from baselines.common.schedules import LinearSchedule, PiecewiseSchedule
-from .model import model, dueling_model
+from .model import model, dueling_model, KerasGazeModelFactory
 
 import matplotlib.pyplot as plt
 
@@ -57,33 +57,8 @@ def parse_args():
     boolean_flag(parser, "debug-mode", default=False, help="if true ad-hoc debug-related code will be run and training may stop halfway")
     parser.add_argument("--ghmap-multiplier", type=int, default=16, help="multiply ghmap by this number to enlarge the scale")
     args = parser.parse_args()
-    gflag.init_me_as(args.__dict__)
+    gflag.add_read_only_from_dict(args.__dict__)
     return args
-
-class KerasGazeModelFactory:
-    def __init__(self):
-        self.models = {}
-        # Use compile=False to avoid loading optimizer state, because loading it adds tons of variables to the Graph in Tensorboard, making it ugly
-        self.gaze_model_template = K.models.load_model(
-            "baselines/DeepqWithGaze/ImgOnly_gazeModels/seaquest-dp0.4-DQN+BNonInput.hdf5", compile=False)
-
-    def get_or_create(self, name):
-        """ 
-        Note: model weight is not set here because even if we do, U.initialize() will 
-        be called below, and it will still override the weight we set here.
-        so call initialze_weights_for_all_created_models() after U.initialize()
-        """
-        if name in self.models:
-            logger.log("model named %s is reused" % name)
-        else:
-            logger.log("model named %s is created" % name)
-            self.models[name] = K.models.Model.from_config(self.gaze_model_template.get_config())
-        return self.models[name]
-
-    def initialze_weights_for_all_created_models(self):
-        for model in self.models.values():
-            model.set_weights(self.gaze_model_template.get_weights())
-
 
 if __name__ == '__main__':
     args = parse_args()
@@ -91,11 +66,9 @@ if __name__ == '__main__':
     MU.keras_model_serialization_bug_fix()
 
     env, monitored_env = make_and_wrap_env(args.env, args.seed)
-    gaze_model_factory = KerasGazeModelFactory()
-
     with U.make_session(4) as sess:
+        # commented this line out coz I im using BN-on-Input model
         # pixel_mean_of_gaze_model_trainset = np.load("baselines/DeepqWithGaze/Img+OF_gazeModels/seaquest.mean.npy")
-        K.backend.set_session(sess)
         if args.debug_mode:
             debug_gaze_in = None 
             #debug_saved_gaze_in = []
@@ -108,16 +81,12 @@ if __name__ == '__main__':
         def model_wrapper(img_in, num_actions, scope, **kwargs):
             logger.log("model_wrapper called: ", str(scope), str(kwargs))
             actual_model = dueling_model if args.dueling else model
-            gaze_in = img_in # - pixel_mean_of_gaze_model_trainset unnecessary coz I im using BN-on-Input model
-            with tf.name_scope(scope+'/ghmap'): # name_scope makes it look nicer on TensorBoard
-                GHmap = gaze_model_factory.get_or_create(name=scope)(gaze_in) * gflag.ghmap_multiplier
+            value_out = actual_model(img_in, num_actions, scope, layer_norm=args.layer_norm, **kwargs)
             if args.debug_mode:
-                debug_tensor = tf.py_func(tf_op_set_debug_tensor, [tf.concat([img_in, GHmap], axis=-1)], [tf.float32], stateful=True, name='debug_tensor')
+                debug_tensor = tf.py_func(tf_op_set_debug_tensor, [gflag.predicted_gaze], [tf.float32], stateful=True, name='debug_tensor')
                 with tf.control_dependencies(debug_tensor):
-                    img_and_gaze_combined = tf.concat([img_in, GHmap*img_in], axis=-1)
-            else:
-                img_and_gaze_combined = tf.concat([img_in, GHmap*img_in], axis=-1)
-            return actual_model(img_and_gaze_combined, num_actions, scope, layer_norm=args.layer_norm, **kwargs)
+                    value_out = tf.identity(value_out)
+            return value_out
         act, train, update_target, debug = DeepqWithGaze.build_train(
             make_obs_ph=lambda name: U.Uint8Input(env.observation_space.shape, name=name),
             q_func=model_wrapper,
@@ -143,7 +112,7 @@ if __name__ == '__main__':
             replay_buffer = ReplayBuffer(args.replay_buffer_size)
 
         U.initialize()
-        gaze_model_factory.initialze_weights_for_all_created_models()
+        gflag.global_keras_gaze_model_factory.initialze_weights_for_all_created_models()
         update_target()
         num_iters = 0
 

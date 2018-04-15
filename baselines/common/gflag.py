@@ -18,28 +18,23 @@ This file has two use cases:
 import sys
 
 class GFlag(object): 
-  _dict = None # None denotes the uninitialized state
+  _dict = {}
 
-  def init_me_as(self, argsdict):
-    if GFlag._dict is None:
-      GFlag._dict = argsdict
-    else:
-      raise AttributeError("GFlag is already initialized")
+  def add_read_only_from_dict(self, kvdict):
+    for (k, v) in kvdict.items():
+      assert type(k)==str, "Only string type can be added as key to Gflag"
+      self.add_read_only(k,v)
 
   def add_read_only(self, name, val):
-    if GFlag._dict is None:
-      GFlag._dict = {} # initialize
     if name not in GFlag._dict:
       GFlag._dict[name] = val
     elif GFlag._dict[name] != val:
       raise AttributeError("GFlag is immutable after initialization")
 
   def exists(self, name):
-    return (GFlag._dict is not None) and (name in GFlag._dict)
+    return name in GFlag._dict
 
   def __getattr__(self, name):
-    if GFlag._dict is None:
-      raise AttributeError("Flag named '%s' not found: GFlag hasn't been initialized." % name)
     if name not in GFlag._dict:
       raise AttributeError("Flag named '%s' not found in GFlag" % name)
     return GFlag._dict[name]
