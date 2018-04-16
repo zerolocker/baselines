@@ -373,7 +373,7 @@ def make_and_wrap_env(game_name, seed):
         env = gym.wrappers.Monitor(env, os.path.join(gflag.save_dir, 'gym_monitor'), force=True)
     return env, monitored_env
 
-def make_save_dir_and_log_basics():
+def make_save_dir_and_log_basics(argdict):
     if gflag.save_dir:
         assert not os.path.exists(gflag.save_dir), "save_dir '%s' already exists. " % (gflag.save_dir) + \
           "This might be because condor killed and rescheduled the original task. " + \
@@ -381,7 +381,7 @@ def make_save_dir_and_log_basics():
           "(because the .py files might have been changed since the last run), the program will terminate now." 
         os.makedirs(gflag.save_dir, exist_ok=False)
     logger.configure(gflag.save_dir, format_strs=['log', 'stdout'])
-    logger.logkvs(gflag._dict)
+    logger.logkvs(argdict)
     logger.dumpkvs()
     logger.log("TODO  copy related py files to save_dir that constitutes a snapshot of code being run")
     # TODO  copy related py files to save_dir that constitutes a snapshot of code being run

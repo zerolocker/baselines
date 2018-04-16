@@ -21,8 +21,11 @@ class KerasGazeModelFactory:
         # Use compile=False to avoid loading optimizer state, because loading it adds tons of variables to the Graph in Tensorboard, making it ugly
         # self.gaze_model_template = K.models.load_model(self.PATH, compile=False)
 
+    def get(self, name):
+        return self.models[name]
+
     def get_or_create(self, name, reuse):
-        """ 
+        """
         Note: model weight is not set here because even if we do, U.initialize() will 
         be called below, and it will still override the weight we set here.
         so call initialze_weights_for_all_created_models() after U.initialize()
@@ -72,44 +75,81 @@ class KerasGazeModelFactory:
             x = deconv3(x)
 
             outputs = L.Activation(MU.my_softmax)(x)
-            self.models[name] = Model(inputs=inputs, outputs=outputs)
-
-            if not gflag.exists('predicted_gaze'):
-                gflag.add_read_only('predicted_gaze', outputs)
+            model = Model(inputs=inputs, outputs=outputs)
+            self.models[name] = model
         return self.models[name]
 
     def initialze_weights_for_all_created_models(self):
         for model in self.models.values():
             model.load_weights(self.PATH)
 
-gflag.add_read_only('global_keras_gaze_model_factory', KerasGazeModelFactory())
+class QFuncModelFactory:
+    def __init__(self):
+        self.models = {}
+        # Use compile=False to avoid loading optimizer state, because loading it adds tons of variables to the Graph in Tensorboard, making it ugly
+        # self.gaze_model_template = K.models.load_model(self.PATH, compile=False)
+
+    def get(self, name):
+        return self.models[name]
+
+    def get_or_create(self, name, reuse, num_actions, layer_norm):
+        if name in self.models:
+            assert reuse == True
+            logger.log("QFunc model named %s is reused" % name)
+        else:
+            logger.log("QFunc model named %s is created" % name)
+            assert reuse == False
+
+            gaze_heatmaps = L.Input(shape=(84,84,1))
+            g=gaze_heatmaps
+            # g=L.BatchNormalization()(g) # not sure if this layer is suitable for DQN; to be tested.
+            imgs=L.Input(shape=(84,84,4))
+
+            x=imgs
+            x=L.Multiply()([x,g])
+            x_intermediate=x
+            x=L.Conv2D(32, (8,8), strides=4, padding='same', activation="relu")(x)
+            x=L.Conv2D(64, (4,4), strides=2, padding='same', activation="relu")(x)
+            x=L.Conv2D(64, (3,3), strides=1, padding='same', activation="relu")(x)
+            # ============================ channel 2 ============================
+            orig_x=imgs
+            orig_x=L.Conv2D(32, (8,8), strides=4, padding='same', activation="relu")(orig_x)
+            orig_x=L.Conv2D(64, (4,4), strides=2, padding='same', activation="relu")(orig_x)
+            orig_x=L.Conv2D(64, (3,3), strides=1, padding='same', activation="relu")(orig_x)
+
+            x=L.Average()([x,orig_x])
+            x=L.Flatten()(x)
+            x=L.Dense(512, activation='relu')(x)
+            if layer_norm:
+                logger.log("Warning: layer_norm is set to True, but Keras doesn't have it. Replacing with BatchNorm.")
+                x=L.BatchNormalization()(x)
+            x=L.Activation('relu')(x)
+            logits=L.Dense(num_actions)(x)
+
+            model=Model(inputs=[imgs, gaze_heatmaps], outputs=[logits, g, x_intermediate])
+            self.models[name] = model
+        return self.models[name]
+
+gflag.add_read_only('gaze_models', KerasGazeModelFactory())
+gflag.add_read_only('qfunc_models', QFuncModelFactory())
 
 def model(img_in, num_actions, scope, reuse=False, layer_norm=False):
     """As described in https://storage.googleapis.com/deepmind-data/assets/papers/DeepMindNature14236Paper.pdf"""
     with tf.variable_scope(scope, reuse=reuse):
-        x = img_in
-        gaze_model = gflag.global_keras_gaze_model_factory.get_or_create(scope, reuse)
-        g = gaze_model(img_in)
-        embed()
-        with tf.variable_scope("convnet_x"):
-            # original architecture
-            x = layers.convolution2d(x, num_outputs=32, kernel_size=8, stride=4, activation_fn=tf.nn.relu)
-            x = layers.convolution2d(x, num_outputs=64, kernel_size=4, stride=2, activation_fn=tf.nn.relu)
-            x = layers.convolution2d(x, num_outputs=64, kernel_size=3, stride=1, activation_fn=tf.nn.relu)
-        with tf.variable_scope("convnet_g"):
-            # original architecture
-            g = layers.convolution2d(g, num_outputs=32, kernel_size=8, stride=4, activation_fn=tf.nn.relu)
-            g = layers.convolution2d(g, num_outputs=64, kernel_size=4, stride=2, activation_fn=tf.nn.relu)
-            g = layers.convolution2d(g, num_outputs=64, kernel_size=3, stride=1, activation_fn=tf.nn.relu)
-        conv_out = layers.flatten(x+g)
+        gaze_model = gflag.gaze_models.get_or_create(scope, reuse)
+        gaze = gaze_model(img_in) * img_in
+        action_model = gflag.qfunc_models.get_or_create(scope, reuse, num_actions, layer_norm)
+        value_out = action_model([img_in, gaze])[0] # [0] means the 1st output --- logits
 
-        with tf.variable_scope("action_value"):
-            value_out = layers.fully_connected(conv_out, num_outputs=512, activation_fn=None)
-            if layer_norm:
-                value_out = layer_norm_fn(value_out, relu=True)
-            else:
-                value_out = tf.nn.relu(value_out)
-            value_out = layers.fully_connected(value_out, num_outputs=num_actions, activation_fn=None)
+        if gflag.debug_mode and scope=='q_func' and reuse==False:
+            def tf_op_set_debug_tensor(x):
+                # TODO HACKY!: this violates and workarounds gflag's immutability, change this
+                gflag._dict['debug_gaze_in'] = x  # line when I have more time to figure out a less hacky solution
+                return x
+            debug_tensor = tf.py_func(tf_op_set_debug_tensor, [tf.concat([img_in, gaze], axis=-1)], [tf.float32], stateful=True, name='debug_tensor')
+            with tf.control_dependencies(debug_tensor):
+                value_out = tf.identity(value_out)
+
         return value_out
 
 

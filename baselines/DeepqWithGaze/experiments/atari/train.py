@@ -62,31 +62,17 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    make_save_dir_and_log_basics()
+    make_save_dir_and_log_basics(args.__dict__)
     MU.keras_model_serialization_bug_fix()
 
     env, monitored_env = make_and_wrap_env(args.env, args.seed)
     with U.make_session(4) as sess:
         # commented this line out coz I im using BN-on-Input model
         # pixel_mean_of_gaze_model_trainset = np.load("baselines/DeepqWithGaze/Img+OF_gazeModels/seaquest.mean.npy")
-        if args.debug_mode:
-            debug_gaze_in = None 
-            #debug_saved_gaze_in = []
-            def tf_op_set_debug_tensor(x):
-                global debug_gaze_in
-                debug_gaze_in = x
-                #debug_saved_gaze_in.append(np.copy(x))
-                return x
         # Create training graph and replay buffer
         def model_wrapper(img_in, num_actions, scope, **kwargs):
-            logger.log("model_wrapper called: ", str(scope), str(kwargs))
             actual_model = dueling_model if args.dueling else model
-            value_out = actual_model(img_in, num_actions, scope, layer_norm=args.layer_norm, **kwargs)
-            if args.debug_mode:
-                debug_tensor = tf.py_func(tf_op_set_debug_tensor, [gflag.predicted_gaze], [tf.float32], stateful=True, name='debug_tensor')
-                with tf.control_dependencies(debug_tensor):
-                    value_out = tf.identity(value_out)
-            return value_out
+            return actual_model(img_in, num_actions, scope, layer_norm=args.layer_norm, **kwargs)
         act, train, update_target, debug = DeepqWithGaze.build_train(
             make_obs_ph=lambda name: U.Uint8Input(env.observation_space.shape, name=name),
             q_func=model_wrapper,
@@ -112,7 +98,7 @@ if __name__ == '__main__':
             replay_buffer = ReplayBuffer(args.replay_buffer_size)
 
         U.initialize()
-        gflag.global_keras_gaze_model_factory.initialze_weights_for_all_created_models()
+        gflag.gaze_models.initialze_weights_for_all_created_models()
         update_target()
         num_iters = 0
 
@@ -137,10 +123,10 @@ if __name__ == '__main__':
         while True:
             num_iters += 1
             num_iters_since_reset += 1
-            if args.debug_mode and debug_gaze_in is not None:
+            if args.debug_mode and gflag.exists('debug_gaze_in'):
                 for i in range(4):
-                    axarr[int(i/2), i%2].imshow(debug_gaze_in[0,:,:,i]) 
-                axarr[1,2].imshow(debug_gaze_in[0,:,:,4]) 
+                    axarr[int(i/2), i%2].imshow(gflag.debug_gaze_in[0,:,:,i])
+                axarr[1,2].imshow(gflag.debug_gaze_in[0,:,:,4])
                 plt.pause(0.1)
 
             if args.debug_mode and time.time() - debug_embed_last_time > debug_embed_freq_sec:

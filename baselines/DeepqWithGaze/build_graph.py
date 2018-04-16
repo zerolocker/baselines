@@ -95,6 +95,9 @@ The functions in this file can are used to create the following functions:
 """
 import tensorflow as tf
 import baselines.common.tf_util as U
+from IPython import embed
+from baselines.common.gflag import gflag
+
 
 
 def default_param_noise_filter(var):
@@ -351,11 +354,15 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
 
         # q network evaluation
         q_t = q_func(obs_t_input.get(), num_actions, scope="q_func", reuse=True)  # reuse parameters from act
-        q_func_vars = U.scope_vars(U.absolute_scope_name("q_func"))
+        q_func_vars = []
+        q_func_vars.extend(gflag.gaze_models.get("q_func").weights)
+        q_func_vars.extend(gflag.qfunc_models.get("q_func").weights)
 
         # target q network evalution
         q_tp1 = q_func(obs_tp1_input.get(), num_actions, scope="target_q_func")
-        target_q_func_vars = U.scope_vars(U.absolute_scope_name("target_q_func"))
+        target_q_func_vars = []
+        target_q_func_vars.extend(gflag.gaze_models.get("target_q_func").weights)
+        target_q_func_vars.extend(gflag.qfunc_models.get("target_q_func").weights)
 
         # q scores for actions which we know were selected in the given state.
         q_t_selected = tf.reduce_sum(q_t * tf.one_hot(act_t_ph, num_actions), 1)
@@ -388,8 +395,8 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
 
         # update_target_fn will be called periodically to copy Q network to target Q network
         update_target_expr = []
-        for var, var_target in zip(sorted(q_func_vars, key=lambda v: v.name),
-                                   sorted(target_q_func_vars, key=lambda v: v.name)):
+        assert len(q_func_vars) == len(target_q_func_vars)
+        for var, var_target in zip(q_func_vars, target_q_func_vars):
             update_target_expr.append(var_target.assign(var))
         update_target_expr = tf.group(*update_target_expr)
 
