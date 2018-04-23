@@ -69,11 +69,12 @@ if __name__ == '__main__':
     with U.make_session(4) as sess:
         # commented this line out coz I im using BN-on-Input model
         # pixel_mean_of_gaze_model_trainset = np.load("baselines/DeepqWithGaze/Img+OF_gazeModels/seaquest.mean.npy")
-        # Create training graph and replay buffer
+
         def model_wrapper(img_in, num_actions, scope, **kwargs):
             actual_model = dueling_model if args.dueling else model
             return actual_model(img_in, num_actions, scope, layer_norm=args.layer_norm, **kwargs)
-        act, train, update_target, debug = DeepqWithGaze.build_train(
+
+        act, train, update_target, debug, tensorboard_summary = DeepqWithGaze.build_train(
             make_obs_ph=lambda name: U.Uint8Input(env.observation_space.shape, name=name),
             q_func=model_wrapper,
             num_actions=env.action_space.n,
@@ -115,6 +116,12 @@ if __name__ == '__main__':
         num_iters_since_reset = 0
         reset = True
 
+        # For tensorboard
+        if args.save_dir != None:
+            train_writer=tf.summary.FileWriter(gflag.save_dir, K.backend.get_session().graph)
+            write_summary_last_time = time.time()
+            write_summary_freq_sec = 3600
+
         # Main trianing loop
         if args.debug_mode:
             fig, axarr = plt.subplots(2,3) # TODO debug only
@@ -153,6 +160,12 @@ if __name__ == '__main__':
                 kwargs['update_param_noise_threshold'] = update_param_noise_threshold
                 kwargs['update_param_noise_scale'] = (num_iters % args.param_noise_update_freq == 0)
 
+            # Write summary to tensorboard (e.g. current game frame and gaze images)
+            if args.save_dir != None and time.time()-write_summary_last_time > write_summary_freq_sec:
+                write_summary_last_time = time.time()
+                summary = tensorboard_summary(np.array(obs)[None])
+                train_writer.add_summary(summary, num_iters)
+
             action = act(np.array(obs)[None], update_eps=update_eps, **kwargs)[0]
             reset = False
             new_obs, rew, done, info = env.step(action)
@@ -166,6 +179,9 @@ if __name__ == '__main__':
 
             if (num_iters > max(5 * args.batch_size, args.replay_buffer_size // 20) and
                     num_iters % args.learning_freq == 0):
+                if num_iters % 5000 == 0:
+                    logger.log("Norm of some weight before train op: ( to see if the Keras model is actually training )")
+                    logger.log("%s %s" % (np.linalg.norm(gflag.gaze_models.get('q_func').layers[-2].get_weights()[0]), np.linalg.norm(gflag.qfunc_models.get('q_func').layers[-1].get_weights()[0])))
                 # Sample a bunch of transitions from replay buffer
                 if args.prioritized:
                     experience = replay_buffer.sample(args.batch_size, beta=beta_schedule.value(num_iters))
@@ -201,7 +217,7 @@ if __name__ == '__main__':
 
             if done:
                 steps_left = args.num_steps - info["steps"]
-                completion = np.round(info["steps"] / args.num_steps, 1)
+                completion = np.round(info["steps"] / args.num_steps * 100, 1)
 
                 logger.record_tabular("% completion", completion)
                 logger.record_tabular("steps", info["steps"])

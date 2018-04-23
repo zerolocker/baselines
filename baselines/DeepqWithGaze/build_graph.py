@@ -97,7 +97,7 @@ import tensorflow as tf
 import baselines.common.tf_util as U
 from IPython import embed
 from baselines.common.gflag import gflag
-
+import keras as K
 
 
 def default_param_noise_filter(var):
@@ -164,7 +164,11 @@ def build_act(make_obs_ph, q_func, num_actions, scope="DeepqWithGaze", reuse=Non
         update_eps_expr = eps.assign(tf.cond(update_eps_ph >= 0, lambda: update_eps_ph, lambda: eps))
         act = U.function(inputs=[observations_ph, stochastic_ph, update_eps_ph],
                          outputs=output_actions,
-                         givens={update_eps_ph: -1.0, stochastic_ph: True},
+                         givens={
+                            update_eps_ph: -1.0,
+                            stochastic_ph: True,
+                            K.backend.learning_phase(): 0
+                         },
                          updates=[update_eps_expr])
         return act
 
@@ -354,15 +358,15 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
 
         # q network evaluation
         q_t = q_func(obs_t_input.get(), num_actions, scope="q_func", reuse=True)  # reuse parameters from act
-        q_func_vars = []
-        q_func_vars.extend(gflag.gaze_models.get("q_func").weights)
-        q_func_vars.extend(gflag.qfunc_models.get("q_func").weights)
+        q_func_vars = \
+            gflag.gaze_models.get("q_func").weights + gflag.qfunc_models.get("q_func").weights
+        # q_func_trainable_vars = \    (unused)
+        #     gflag.gaze_models.get("q_func").trainable_weights +  gflag.qfunc_models.get("q_func").weights
 
         # target q network evalution
         q_tp1 = q_func(obs_tp1_input.get(), num_actions, scope="target_q_func")
-        target_q_func_vars = []
-        target_q_func_vars.extend(gflag.gaze_models.get("target_q_func").weights)
-        target_q_func_vars.extend(gflag.qfunc_models.get("target_q_func").weights)
+        target_q_func_vars = \
+            gflag.gaze_models.get("target_q_func").weights + gflag.qfunc_models.get("target_q_func").weights
 
         # q scores for actions which we know were selected in the given state.
         q_t_selected = tf.reduce_sum(q_t * tf.one_hot(act_t_ph, num_actions), 1)
@@ -388,10 +392,10 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
         if grad_norm_clipping is not None:
             optimize_expr = U.minimize_and_clip(optimizer,
                                                 weighted_error,
-                                                var_list=q_func_vars,
+                                                var_list=None,
                                                 clip_val=grad_norm_clipping)
         else:
-            optimize_expr = optimizer.minimize(weighted_error, var_list=q_func_vars)
+            optimize_expr = optimizer.minimize(weighted_error)
 
         # update_target_fn will be called periodically to copy Q network to target Q network
         update_target_expr = []
@@ -411,10 +415,23 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                 importance_weights_ph
             ],
             outputs=td_error,
-            updates=[optimize_expr]
+            updates=[optimize_expr],
+            givens={K.backend.learning_phase():1}
         )
         update_target = U.function([], [], updates=[update_target_expr])
 
         q_values = U.function([obs_t_input], q_t)
 
-        return act_f, train, update_target, {'q_values': q_values}
+        # For tensorboard
+        merged = tf.summary.merge([
+            tf.summary.image('img_curframe', obs_t_input.get()),
+            tf.summary.image('gaze_curframe', q_func(
+                obs_t_input.get(), num_actions, scope="q_func", return_gaze=True, reuse=True))
+        ])
+        tensorboard_summary = U.function(
+            inputs=[obs_t_input],
+            outputs=merged,
+            givens={K.backend.learning_phase():0}
+        )
+        
+        return act_f, train, update_target, {'q_values': q_values}, tensorboard_summary

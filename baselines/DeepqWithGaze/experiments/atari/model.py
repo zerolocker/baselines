@@ -18,8 +18,6 @@ class KerasGazeModelFactory:
     def __init__(self):
         self.models = {}
         self.PATH = "baselines/DeepqWithGaze/ImgOnly_gazeModels/seaquest-dp0.4-DQN+BNonInput.hdf5"
-        # Use compile=False to avoid loading optimizer state, because loading it adds tons of variables to the Graph in Tensorboard, making it ugly
-        # self.gaze_model_template = K.models.load_model(self.PATH, compile=False)
 
     def get(self, name):
         return self.models[name]
@@ -32,50 +30,11 @@ class KerasGazeModelFactory:
         """
         if name in self.models:
             assert reuse == True
-            logger.log("model named %s is reused" % name)
+            logger.log("Gaze model named %s is reused" % name)
         else:
-            logger.log("model named %s is created" % name)
-            assert reuse == False
-            dropout = 0.5
-            inputs=L.Input(shape=(84,84,4))
-            x=inputs # inputs is used by the line "Model(inputs, ... )" below
-            x=L.BatchNormalization()(x)
-
-            conv1=L.Conv2D(32, (8,8), strides=4, padding='valid')
-            x = conv1(x)
-            x=L.Activation('relu')(x)
-            x=L.BatchNormalization()(x)
-            x=L.Dropout(dropout)(x)
-
-            conv2=L.Conv2D(64, (4,4), strides=2, padding='valid')
-            x = conv2(x)
-            x=L.Activation('relu')(x)
-            x=L.BatchNormalization()(x)
-            x=L.Dropout(dropout)(x)
-
-            conv3=L.Conv2D(64, (3,3), strides=1, padding='valid')
-            x = conv3(x)
-            x=L.Activation('relu')(x)
-            x=L.BatchNormalization()(x)
-            x=L.Dropout(dropout)(x)
-
-            deconv1 = L.Conv2DTranspose(64, (3,3), strides=1, padding='valid')
-            x = deconv1(x)
-            x=L.Activation('relu')(x)
-            x=L.BatchNormalization()(x)
-            x=L.Dropout(dropout)(x)
-
-            deconv2 = L.Conv2DTranspose(32, (4,4), strides=2, padding='valid')
-            x = deconv2(x)
-            x=L.Activation('relu')(x)
-            x=L.BatchNormalization()(x)
-            x=L.Dropout(dropout)(x)
-
-            deconv3 = L.Conv2DTranspose(1, (8,8), strides=4, padding='valid')
-            x = deconv3(x)
-
-            outputs = L.Activation(MU.my_softmax)(x)
-            model = Model(inputs=inputs, outputs=outputs)
+            logger.log("Gaze model named %s is created" % name)
+            # Use compile=False to avoid loading optimizer state, because loading it adds tons of variables to the Graph in Tensorboard, making it ugly
+            model = K.models.load_model(self.PATH, compile=False)
             self.models[name] = model
         return self.models[name]
 
@@ -92,21 +51,21 @@ class QFuncModelFactory:
     def get(self, name):
         return self.models[name]
 
-    def get_or_create(self, name, reuse, num_actions, layer_norm):
+    def get_or_create(self, gaze_model, name, reuse, num_actions, layer_norm):
         if name in self.models:
             assert reuse == True
             logger.log("QFunc model named %s is reused" % name)
         else:
             logger.log("QFunc model named %s is created" % name)
             assert reuse == False
-
-            gaze_heatmaps = L.Input(shape=(84,84,1))
-            g=gaze_heatmaps
-            # g=L.BatchNormalization()(g) # not sure if this layer is suitable for DQN; to be tested.
             imgs=L.Input(shape=(84,84,4))
 
+            gaze_heatmaps = gaze_model(imgs)
+            g=gaze_heatmaps
+            g=L.BatchNormalization()(g) # With this, gaze_model's gradient input is 50x larger; otherwise it won't train
+
             x=imgs
-            x=L.Multiply()([x,g])
+            x=L.Multiply(name="img_mul_gaze")([x,g])
             x_intermediate=x
             x=L.Conv2D(32, (8,8), strides=4, padding='same', activation="relu")(x)
             x=L.Conv2D(64, (4,4), strides=2, padding='same', activation="relu")(x)
@@ -124,22 +83,21 @@ class QFuncModelFactory:
                 logger.log("Warning: layer_norm is set to True, but Keras doesn't have it. Replacing with BatchNorm.")
                 x=L.BatchNormalization()(x)
             x=L.Activation('relu')(x)
-            logits=L.Dense(num_actions)(x)
+            logits=L.Dense(num_actions, name="logits")(x)
 
-            model=Model(inputs=[imgs, gaze_heatmaps], outputs=[logits, g, x_intermediate])
+            model=Model(inputs=[imgs], outputs=[logits, x_intermediate])
             self.models[name] = model
         return self.models[name]
 
 gflag.add_read_only('gaze_models', KerasGazeModelFactory())
 gflag.add_read_only('qfunc_models', QFuncModelFactory())
 
-def model(img_in, num_actions, scope, reuse=False, layer_norm=False):
+def model(img_in, num_actions, scope, reuse=False, layer_norm=False, return_gaze=False):
     """As described in https://storage.googleapis.com/deepmind-data/assets/papers/DeepMindNature14236Paper.pdf"""
     with tf.variable_scope(scope, reuse=reuse):
         gaze_model = gflag.gaze_models.get_or_create(scope, reuse)
-        gaze = gaze_model(img_in) * img_in
-        action_model = gflag.qfunc_models.get_or_create(scope, reuse, num_actions, layer_norm)
-        value_out = action_model([img_in, gaze])[0] # [0] means the 1st output --- logits
+        action_model = gflag.qfunc_models.get_or_create(gaze_model, scope, reuse, num_actions, layer_norm)
+        value_out, gaze  = action_model([img_in]) # [0] means the 1st output --- logits
 
         if gflag.debug_mode and scope=='q_func' and reuse==False:
             def tf_op_set_debug_tensor(x):
@@ -150,7 +108,7 @@ def model(img_in, num_actions, scope, reuse=False, layer_norm=False):
             with tf.control_dependencies(debug_tensor):
                 value_out = tf.identity(value_out)
 
-        return value_out
+        return value_out if not return_gaze else gaze
 
 
 def dueling_model(img_in, num_actions, scope, reuse=False, layer_norm=False):
