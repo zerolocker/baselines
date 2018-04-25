@@ -55,7 +55,7 @@ def parse_args():
     boolean_flag(parser, "also-save-training-state", default=False, help="if true also save training state (huge replay buffer) so that training will be resumed")
     
     boolean_flag(parser, "debug-mode", default=False, help="if true ad-hoc debug-related code will be run and training may stop halfway")
-    parser.add_argument("--ghmap-multiplier", type=int, default=16, help="multiply ghmap by this number to enlarge the scale")
+    boolean_flag(parser, "train-gaze", default=True, help="if false, gaze model weight will not be trained")
     args = parser.parse_args()
     gflag.add_read_only_from_dict(args.__dict__)
     return args
@@ -82,7 +82,8 @@ if __name__ == '__main__':
             gamma=0.99,
             grad_norm_clipping=10,
             double_q=args.double_q,
-            param_noise=args.param_noise
+            param_noise=args.param_noise,
+            train_gaze=args.train_gaze
         )
 
         approximate_num_iters = args.num_steps / 4
@@ -179,7 +180,7 @@ if __name__ == '__main__':
 
             if (num_iters > max(5 * args.batch_size, args.replay_buffer_size // 20) and
                     num_iters % args.learning_freq == 0):
-                if num_iters % 5000 == 0:
+                if num_iters % 10000 == 0:
                     logger.log("Norm of some weight before train op: ( to see if the Keras model is actually training )")
                     logger.log("%s %s" % (np.linalg.norm(gflag.gaze_models.get('q_func').layers[-2].get_weights()[0]), np.linalg.norm(gflag.qfunc_models.get('q_func').layers[-1].get_weights()[0])))
                 # Sample a bunch of transitions from replay buffer

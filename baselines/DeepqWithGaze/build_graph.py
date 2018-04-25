@@ -286,7 +286,7 @@ def build_act_with_param_noise(make_obs_ph, q_func, num_actions, scope="DeepqWit
         return act
 
 
-def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=None, gamma=1.0,
+def build_train(make_obs_ph, q_func, num_actions, optimizer, train_gaze, grad_norm_clipping=None, gamma=1.0,
     double_q=True, scope="DeepqWithGaze", reuse=None, param_noise=False, param_noise_filter_func=None):
     """Creates the train function:
 
@@ -360,8 +360,8 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
         q_t = q_func(obs_t_input.get(), num_actions, scope="q_func", reuse=True)  # reuse parameters from act
         q_func_vars = \
             gflag.gaze_models.get("q_func").weights + gflag.qfunc_models.get("q_func").weights
-        # q_func_trainable_vars = \    (unused)
-        #     gflag.gaze_models.get("q_func").trainable_weights +  gflag.qfunc_models.get("q_func").weights
+        q_func_trainable_vars = [ w for w in gflag.qfunc_models.get("q_func").trainable_weights \
+            if (train_gaze or w not in gflag.gaze_models.get("q_func").trainable_weights) ] # train_gaze=False excludes gaze model's weight
 
         # target q network evalution
         q_tp1 = q_func(obs_tp1_input.get(), num_actions, scope="target_q_func")
@@ -392,10 +392,10 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
         if grad_norm_clipping is not None:
             optimize_expr = U.minimize_and_clip(optimizer,
                                                 weighted_error,
-                                                var_list=None,
+                                                var_list=q_func_trainable_vars,
                                                 clip_val=grad_norm_clipping)
         else:
-            optimize_expr = optimizer.minimize(weighted_error)
+            optimize_expr = optimizer.minimize(weighted_error, var_list=q_func_trainable_vars)
 
         # update_target_fn will be called periodically to copy Q network to target Q network
         update_target_expr = []
@@ -433,5 +433,5 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             outputs=merged,
             givens={K.backend.learning_phase():0}
         )
-        
+
         return act_f, train, update_target, {'q_values': q_values}, tensorboard_summary
