@@ -4,7 +4,7 @@ import sys, re, os, subprocess, numpy as np, string, random, time
 def savedir_arg(MODEL_NAME):
   EXPR_NAME = sys.argv[3]
   prefix = MODEL_NAME+'_'+EXPR_NAME
-  return '--no-load-on-start --save-dir SaveDir/%s_%s_%05d' % (
+  return '--resumable --save-dir SaveDir/%s_%s_%05d' % (
         prefix,time.strftime("%b%d"),random.randint(0,100000))
 
 def create_bgrun_sh_dqnNature_noDoubleQ_model(GAME_NAME):

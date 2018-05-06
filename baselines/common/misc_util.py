@@ -331,16 +331,15 @@ def pickle_load(path, compression=False):
 
 
 def maybe_save_model(savedir, state):
-    """This function checkpoints the model and state of the training algorithm."""
-    if savedir is None:
+    """deepq/?/?/train.py does not use this, but a same-name func in train.py"""
+    if savedir is None or not gflag.resumable:
         return
     start_time = time.time()
     import subprocess # remove previously save models to save space
-    subprocess.call("rm -rf model-*", shell=True)
+    subprocess.call("rm -rf " + os.path.join(savedir, "model-*"), shell=True)
     model_dir = "model-{}".format(state["num_iters"])
     U.save_state(os.path.join(savedir, model_dir, "saved"))
-    if gflag.also_save_training_state:
-        relatively_safe_pickle_dump(state, os.path.join(savedir, 'training_state.pkl.zip'), compression=True)
+    relatively_safe_pickle_dump(state, os.path.join(savedir, 'training_state.pkl.zip'), compression=True)
     relatively_safe_pickle_dump(state["monitor_state"], os.path.join(savedir, 'monitor_state.pkl'))
     logger.log("Saved model in {} seconds\n".format(time.time() - start_time))
 
@@ -374,14 +373,18 @@ def make_and_wrap_env(game_name, seed):
     return env, monitored_env
 
 def make_save_dir_and_log_basics(argdict):
-    if gflag.save_dir:
-        assert not os.path.exists(gflag.save_dir), "save_dir '%s' already exists. " % (gflag.save_dir) + \
-          "This might be because condor killed and rescheduled the original task. " + \
-          "To prevent log.txt being overwritten/appended by a possibly different model's log " + \
-          "(because the .py files might have been changed since the last run), the program will terminate now." 
-        os.makedirs(gflag.save_dir, exist_ok=False)
-    logger.configure(gflag.save_dir, format_strs=['log', 'stdout'])
-    logger.logkvs(argdict)
-    logger.dumpkvs()
-    logger.log("TODO  copy related py files to save_dir that constitutes a snapshot of code being run")
-    # TODO  copy related py files to save_dir that constitutes a snapshot of code being run
+    if not gflag.save_dir:
+        assert not gflag.resumable, "You cannot set --resumable without setting --save-dir."
+    else:
+        assert gflag.resumable or (not os.path.exists(gflag.save_dir)), \
+          "--save_dir '%s' already exists and resumable is False. " % (gflag.save_dir) + \
+          "This might be because condor killed and rescheduled the original task."  + \
+          "To prevent log.txt being overwritten/appended by a possibly different model's log, " + \
+          "the program will terminate now."
+        os.makedirs(gflag.save_dir, exist_ok=True)
+        logger.configure(gflag.save_dir, format_strs=['log', 'stdout'])
+        logger.logkvs(argdict)
+        logger.dumpkvs()
+        logger.log("TODO  copy related py files to save_dir that constitutes a snapshot of code being run")
+        # TODO  copy related py files to save_dir that constitutes a snapshot of code being run
+
