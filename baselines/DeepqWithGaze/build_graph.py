@@ -358,15 +358,13 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, train_gaze, grad_no
 
         # q network evaluation
         q_t = q_func(obs_t_input.get(), num_actions, scope="q_func", reuse=True)  # reuse parameters from act
-        q_func_vars = \
-            gflag.gaze_models.get("q_func").weights + gflag.qfunc_models.get("q_func").weights
+        q_func_vars = gflag.qfunc_models.get("q_func").weights # already includes gaze_models weights
         q_func_trainable_vars = [ w for w in gflag.qfunc_models.get("q_func").trainable_weights \
             if (train_gaze or w not in gflag.gaze_models.get("q_func").trainable_weights) ] # train_gaze=False excludes gaze model's weight
 
         # target q network evalution
         q_tp1 = q_func(obs_tp1_input.get(), num_actions, scope="target_q_func")
-        target_q_func_vars = \
-            gflag.gaze_models.get("target_q_func").weights + gflag.qfunc_models.get("target_q_func").weights
+        target_q_func_vars = gflag.qfunc_models.get("target_q_func").weights # already includes gaze_models weights
 
         # q scores for actions which we know were selected in the given state.
         q_t_selected = tf.reduce_sum(q_t * tf.one_hot(act_t_ph, num_actions), 1)

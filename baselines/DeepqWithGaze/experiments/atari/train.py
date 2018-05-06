@@ -51,8 +51,8 @@ def parse_args():
     # Checkpointing
     parser.add_argument("--save-dir", type=str, default=None, help="directory in which training state and model should be saved.")
     parser.add_argument("--save-freq", type=int, default=1e6, help="save model once every time this many iterations are completed")
-    boolean_flag(parser, "load-on-start", default=True, help="if true and model was previously saved then training will be resumed")
-    boolean_flag(parser, "also-save-training-state", default=False, help="if true also save training state (huge replay buffer) so that training will be resumed")
+    boolean_flag(parser, "resumable", default=False, help="if true model was previously saved then training will be resumed; \
+      also save training state (including huge replay buffer) so that training can be resumed")
     
     boolean_flag(parser, "debug-mode", default=False, help="if true ad-hoc debug-related code will be run and training may stop halfway")
     boolean_flag(parser, "train-gaze", default=True, help="if false, gaze model weight will not be trained")
@@ -104,7 +104,7 @@ if __name__ == '__main__':
         update_target()
         num_iters = 0
 
-        if args.load_on_start: # Load the model
+        if args.resumable:
             state = maybe_load_model(gflag.save_dir)
             if state is not None:
                 num_iters, replay_buffer = state["num_iters"], state["replay_buffer"],
