@@ -2,8 +2,8 @@
 import sys, re, os, subprocess, numpy as np, string, random, time
 
 def savedir_arg(MODEL_NAME):
-  MODEL_NICKNAME = sys.argv[3]
-  prefix = MODEL_NAME+'_'+MODEL_NICKNAME
+  EXPR_NAME = sys.argv[3]
+  prefix = MODEL_NAME+'_'+EXPR_NAME
   return '--no-load-on-start --save-dir SaveDir/%s_%s_%05d' % (
         prefix,time.strftime("%b%d"),random.randint(0,100000))
 
@@ -21,7 +21,7 @@ def create_bgrun_sh_dqnNature_noDoubleQ_model(GAME_NAME):
 
 def create_bgrun_sh_DeepqWithGaze_noDoubleQ_model(GAME_NAME):
   sh_file_content = ""
-  for run_num in range(3):
+  for run_num in range(1):
     sh_file_content += ' '.join(['python3', '-m baselines.DeepqWithGaze.experiments.atari.train',
       '--env', GAME_NAME, '--no-double-q',
       savedir_arg('dqnHgaze'),
@@ -57,8 +57,8 @@ def main(bg_run_creator_func):
 
     executable = /bin/bash 
     getenv = true
-    output = CondorOutput/$(Cluster).out
-    error = CondorOutput/$(Cluster).err
+    output = CondorOutput/{1}.$(Cluster).out
+    error = CondorOutput/{1}.$(Cluster).err
     log = CondorOutput/log.txt
     priority = 1
     Queue
@@ -71,6 +71,8 @@ def main(bg_run_creator_func):
       return name
 
     SH_FILE_DIR =  os.path.abspath('bgrun_yard')
+    EXPR_NAME = sys.argv[3]
+
     if not os.path.exists(SH_FILE_DIR):
       os.makedirs(SH_FILE_DIR)
     CHOSEN = [sys.argv[1]] if sys.argv[1] != 'all' else ALL_GAME_NAMES
@@ -83,7 +85,7 @@ def main(bg_run_creator_func):
         sh_f = open(sh_filename, 'w')
         sh_f.write(sh_file_content)
 
-        submission = basestr.format(sh_filename)
+        submission = basestr.format(sh_filename, EXPR_NAME)
         with open('submit.condor', 'w') as f:
           f.write(submission)
 
@@ -95,7 +97,7 @@ model_to_func = {
         }
 
 if len(sys.argv) < 4:
-  print("Usage: %s <GAME_NAME|all> <MODEL_NAME> <YOUR_MODEL_NICKNAME> <OTHER_PARAMETERS_TO_PASS>" % __file__)
+  print("Usage: %s <GAME_NAME|all> <MODEL_NAME> <YOUR_EXPR_NAME> <OTHER_PARAMETERS_TO_PASS>" % __file__)
   print("'all' means run all games:", ALL_GAME_NAMES)
   print("Supported MODEL_NAME are: " , model_to_func.keys())
   sys.exit(1)
