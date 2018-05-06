@@ -62,7 +62,7 @@ def parse_args():
     boolean_flag(parser, "load-on-start", default=True, help="if true and model was previously saved then training will be resumed")
     
     args = parser.parse_args()
-    gflag.init_me_as(args.__dict__)
+    gflag.add_read_only_from_dict(args.__dict__)
     return args
 
 
