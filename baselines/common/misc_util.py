@@ -334,13 +334,23 @@ def maybe_save_model(savedir, state):
     """deepq/?/?/train.py does not use this, but a same-name func in train.py"""
     if savedir is None or not gflag.resumable:
         return
+    logger.log("Saving model. First create tmp file and then rename them to make this operation approximately transactional.")
     start_time = time.time()
-    import subprocess # remove previously save models to save space
-    subprocess.call("rm -rf " + os.path.join(savedir, "model-*"), shell=True)
-    model_dir = "model-{}".format(state["num_iters"])
-    U.save_state(os.path.join(savedir, model_dir, "saved"))
-    relatively_safe_pickle_dump(state, os.path.join(savedir, 'training_state.pkl.zip'), compression=True)
-    relatively_safe_pickle_dump(state["monitor_state"], os.path.join(savedir, 'monitor_state.pkl'))
+    import subprocess
+
+    fname1 = os.path.join(savedir, 'training_state.pkl.zip')
+    fname2 = os.path.join(savedir, 'monitor_state.pkl')
+    subprocess.call("rm -rf " + os.path.join(savedir, "tmp_model_dir"), shell=True)
+    U.save_state(os.path.join(savedir, "tmp_model_dir", "saved"))
+    relatively_safe_pickle_dump(state, fname1 + '.tmp', compression=True)
+    relatively_safe_pickle_dump(state["monitor_state"], fname2 + '.tmp')
+
+    subprocess.call("mv {0}.tmp {0}".format(fname1), shell=True)
+    subprocess.call("mv {0}.tmp {0}".format(fname2), shell=True)
+    subprocess.call("rm -rf " + os.path.join(savedir, "model-*"), shell=True)  # remove previously-saved models to save space
+    subprocess.call("mv {0} {1}".format(
+        os.path.join(savedir, "tmp_model_dir"),
+        os.path.join(savedir, "model-{}".format(state["num_iters"]))), shell=True)
     logger.log("Saved model in {} seconds\n".format(time.time() - start_time))
 
 
