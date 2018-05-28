@@ -78,7 +78,7 @@ class QFuncModelFactory:
 
             x=L.Average()([x,orig_x])
             x=L.Flatten()(x)
-            x=L.Dense(512, activation='relu')(x)
+            x=L.Dense(512)(x)
             if layer_norm:
                 logger.log("Warning: layer_norm is set to True, but Keras doesn't have it. Replacing with BatchNorm.")
                 x=L.BatchNormalization()(x)
