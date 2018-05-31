@@ -23,18 +23,22 @@ def main():
   # concatenate all log files into a python list, grouped by model name
   concated_log = []
   for (pattern, modelname) in zip(files_pattern, modelnames):
-    try:
-      matched_files = subprocess.check_output("find . | grep '%s'" % pattern, shell=True).decode('utf-8')
-    except subprocess.CalledProcessError as ex:
-      print(ex)
-      print("Regex might be wrong (for example, did you use * instead of .* ?)")
-      sys.exit(1)
+    if (os.path.exists(pattern)):
+       print("Intepreting %s as a path instead of a regex path pattern, because this file exists" % pattern)
+       matched_files = pattern
+    else:
+      try:
+        matched_files = subprocess.check_output("find . | grep '%s'" % pattern, shell=True).decode('utf-8')
+      except subprocess.CalledProcessError as ex:
+        print(ex)
+        print("Regex might be wrong (for example, did you use * instead of .* ?)")
+        sys.exit(1)
     print("modelname: '%s' pattern: '%s' matched the following files:" % (modelname, pattern))
     print(matched_files)
     matched_files = matched_files.split()
     concated_log.append([])
     for fname in matched_files:
-      assert "ASCII" in subprocess.check_output(["file", fname]).decode('utf-8'), "This file is not ASCII file: " + fname
+      assert "ASCII" in subprocess.check_output(["file", fname]).decode('utf-8'), "This file is not ASCII file: " + fname + " . Did you use regex to match any file? You should only match log.txt by using e.g. '/model_.*/log.txt'"
       with open(fname, 'r') as f:
         concated_log[-1] += f.readlines() # readlines() returns a list
 
