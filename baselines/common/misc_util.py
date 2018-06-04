@@ -1,6 +1,6 @@
 import gym
 import numpy as np
-import os
+import os, subprocess, shutil
 import pickle
 import random
 import tempfile
@@ -396,5 +396,13 @@ def make_save_dir_and_log_basics(argdict):
         logger.logkvs(argdict)
         logger.dumpkvs()
         logger.log("TODO  copy related py files to save_dir that constitutes a snapshot of code being run")
-        # TODO  copy related py files to save_dir that constitutes a snapshot of code being run
+
+        # copy related py files to save_dir to generate a snapshot of code being run
+        snapshot_dir = gflag.save_dir + "/all_py_files_snapshot/"
+        py_files = subprocess.check_output("find baselines | grep '\\.py$'", shell=True).decode('utf-8').split()
+        py_files += subprocess.check_output("ls *.py", shell=True).decode('utf-8').split()
+        for py_file in py_files:
+            os.makedirs(snapshot_dir + os.path.dirname(py_file), exist_ok=True)
+            shutil.copyfile(py_file, snapshot_dir + py_file)
+
 
