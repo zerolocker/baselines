@@ -29,6 +29,28 @@ def create_bgrun_sh_DeepqWithGaze_noDoubleQ_model(GAME_NAME):
   sh_file_content += 'wait\n'
   return sh_file_content
 
+def create_bgrun_sh_gazeDqnRollback2_noDoubleQ_model(GAME_NAME):
+  sh_file_content = ""
+  for run_num in range(1):
+    sh_file_content += ' '.join(['python3', '-m baselines.gazeDqnRollback2.experiments.atari.train',
+      '--env', GAME_NAME, '--no-double-q',
+      save_model_args('gazeDqnRollback2'),
+      ] + OTHER_PARAMETERS_TO_PASS)
+    sh_file_content += ' &\n'
+  sh_file_content += 'wait\n'
+  return sh_file_content
+
+def create_bgrun_sh_gazeDqnRollback3_noDoubleQ_model(GAME_NAME):
+  sh_file_content = ""
+  for run_num in range(1):
+    sh_file_content += ' '.join(['python3', '-m baselines.gazeDqnRollback3.experiments.atari.train',
+      '--env', GAME_NAME, '--no-double-q',
+      save_model_args('gazeDqnRollback3'),
+      ] + OTHER_PARAMETERS_TO_PASS)
+    sh_file_content += ' &\n'
+  sh_file_content += 'wait\n'
+  return sh_file_content
+
 def fix_wrong_game_name(name):
   name = str.capitalize(name)
   if (name.lower() == 'mspacman'):
@@ -48,19 +70,21 @@ ALL_GAME_NAMES=[
 
 MODEL_SH_MAPPING = {
         "dqnNature_noDoubleQ": create_bgrun_sh_dqnNature_noDoubleQ_model,
-        "DeepqWithGaze_noDoubleQ": create_bgrun_sh_DeepqWithGaze_noDoubleQ_model
+        "DeepqWithGaze_noDoubleQ": create_bgrun_sh_DeepqWithGaze_noDoubleQ_model,
+        "gazeDqnRollback2": create_bgrun_sh_gazeDqnRollback2_noDoubleQ_model, 
+        "gazeDqnRollback3": create_bgrun_sh_gazeDqnRollback3_noDoubleQ_model, 
         }
-
-OTHER_PARAMETERS_TO_PASS = sys.argv[4:] # TODO: refactor this and be less hacky
-EXPR_NAME = sys.argv[3]
-CHOSEN = [sys.argv[1]] if sys.argv[1] != 'all' else ALL_GAME_NAMES
-SH_FILE_DIR =  os.path.abspath('bgrun_yard')
 
 if len(sys.argv) < 4:
     print("Usage: %s <GAME_NAME|all> <MODEL_NAME> <YOUR_EXPR_NAME> <OTHER_PARAMETERS_TO_PASS>" % __file__)
     print("'all' means run all games:", ALL_GAME_NAMES)
     print("Supported MODEL_NAME are: " , MODEL_SH_MAPPING.keys())
     sys.exit(1)
+
+OTHER_PARAMETERS_TO_PASS = sys.argv[4:] # TODO: refactor this and be less hacky
+EXPR_NAME = sys.argv[3]
+CHOSEN = [sys.argv[1]] if sys.argv[1] != 'all' else ALL_GAME_NAMES
+SH_FILE_DIR =  os.path.abspath('bgrun_yard')
 
 if sys.argv[2] not in MODEL_SH_MAPPING:
     print("ERROR: Wrong model name.")
@@ -75,7 +99,7 @@ else:
     basestr="""
     # doc at : http://research.cs.wisc.edu/htcondor/manual/current/condor_submit.html
     arguments = {0}
-    remote_initialdir = /scratch/cluster/zharucs/oai-baseline
+    remote_initialdir = {1}
     +Group ="GRAD"
     +Project ="AI_ROBOTICS"
     +ProjectDescription="ale"
@@ -87,8 +111,8 @@ else:
 
     executable = /bin/bash 
     getenv = true
-    output = CondorOutput/{1}.$(Cluster).out
-    error = CondorOutput/{1}.$(Cluster).err
+    output = CondorOutput/{2}.$(Cluster).out
+    error = CondorOutput/{2}.$(Cluster).err
     log = CondorOutput/log.txt
     priority = 1
     Queue
@@ -106,7 +130,7 @@ else:
         sh_f.write(sh_file_content)
 
         with open('submit.condor', 'w') as f:
-          f.write(basestr.format(sh_filename, EXPR_NAME))
+          f.write(basestr.format(sh_filename, os.path.abspath('.'), EXPR_NAME))
 
         subprocess.call(['condor_submit', 'submit.condor'])
 
