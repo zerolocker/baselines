@@ -12,7 +12,7 @@ def main():
     'e.g. 23456.out Dqn 23486.out DqnWithGaze\n' + 
     '[path pattern is supported, in `grep` syntax]\n' +
     'e.g. dqnHgaze_freezeGaze.*/log.txt freezeGaze dqnHgaze_trainableGaze.*/log.txt trainableGaze \n' +
-    'If there are >1 file becasue you used path pattern, rewards belonging to the same episode is aggregrated by np.max().')
+    'If there are >1 file becasue you used path pattern, rewards belonging to the same episode is aggregrated by np.mean().')
   parser.add_argument('files_and_modelnames', metavar='files_and_modelnames_seperated_by_a_space', nargs = '+')
   args = parser.parse_args()
   assert(len(args.files_and_modelnames)%2==0)
@@ -63,7 +63,7 @@ def myplot(log, color, modelname):
   x,y=[], []
   for (epi, rew_list) in epi_data.items():
     x.append(epi)
-    y.append(np.max(rew_list))
+    y.append(np.mean(rew_list))
   plt.plot(x,y, c=color, label=modelname)
 
 def finalize_plot_and_show():
