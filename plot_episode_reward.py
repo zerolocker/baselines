@@ -10,12 +10,14 @@ import os, subprocess, sys
 def main():
   parser = argparse.ArgumentParser('You must specify a model name for each file/file pattern. ' +
     'e.g. 23456.out Dqn 23486.out DqnWithGaze\n' + 
-    '[path pattern is supported, in `grep` syntax]\n' +
-    'e.g. dqnHgaze_freezeGaze.*/log.txt freezeGaze dqnHgaze_trainableGaze.*/log.txt trainableGaze \n' +
+    '[path pattern is also supported]\n' +
+    'e.g. SaveDir/dqnHgaze_freezeGaze*/log.txt freezeGaze SaveDir/dqnHgaze_trainableGaze*/log.txt trainableGaze \n' +
     'If there are >1 file becasue you used path pattern, rewards belonging to the same episode is aggregrated by np.mean().')
   parser.add_argument('files_and_modelnames', metavar='files_and_modelnames_seperated_by_a_space', nargs = '+')
   args = parser.parse_args()
-  assert(len(args.files_and_modelnames)%2==0)
+  assert len(args.files_and_modelnames)%2==0, \
+     "Number of arguments is not even. Expecting pairs of (file_pattern, modelname). Got: %s" % args.files_and_modelnames \
+     + "\nPlease also make sure you put quote '' around the arugment that contains '*'"
   n = len(args.files_and_modelnames)
   files_pattern = args.files_and_modelnames[0:n:2]
   modelnames =  args.files_and_modelnames[1:n:2]
@@ -23,22 +25,14 @@ def main():
   # concatenate all log files into a python list, grouped by model name
   concated_log = []
   for (pattern, modelname) in zip(files_pattern, modelnames):
-    if (os.path.exists(pattern)):
-       print("Intepreting %s as a path instead of a regex path pattern, because this file exists" % pattern)
-       matched_files = pattern
-    else:
-      try:
-        matched_files = subprocess.check_output("find . | grep '%s'" % pattern, shell=True).decode('utf-8')
-      except subprocess.CalledProcessError as ex:
-        print(ex)
-        print("Regex might be wrong (for example, did you use * instead of .* ?)")
-        sys.exit(1)
-    print("modelname: '%s' pattern: '%s' matched the following files:" % (modelname, pattern))
+    matched_files = subprocess.check_output("ls -R " + pattern, shell=True).decode('utf-8')
+    print("The following files matched for model '%s':" % modelname)
     print(matched_files)
+    print("")
     matched_files = matched_files.split()
     concated_log.append([])
     for fname in matched_files:
-      assert "ASCII" in subprocess.check_output(["file", fname]).decode('utf-8'), "This file is not ASCII file: " + fname + " . Did you use regex to match any file? You should only match log.txt by using e.g. '/model_.*/log.txt'"
+      assert "ASCII" in subprocess.check_output(["file", fname]).decode('utf-8'), "This file is not ASCII file: " + fname + " . You should only match log.txt by using e.g. '/DQN_doubleQ_*/log.txt'"
       with open(fname, 'r') as f:
         concated_log[-1] += f.readlines() # readlines() returns a list
 

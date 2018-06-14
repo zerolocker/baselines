@@ -28,7 +28,7 @@ def parse_args():
     parser = argparse.ArgumentParser("DQN experiments for Atari games")
     # Environment
     parser.add_argument("--env", type=str, default="Pong", help="name of the game")
-    parser.add_argument("--seed", type=int, default=-1, help="which seed to use. If negative, use system deafult")
+    parser.add_argument("--seed", type=int, default=int(time.time()*1000 % 65536), help="which seed to use. If negative, use system deafult")
     # Core DQN parameters
     parser.add_argument("--replay-buffer-size", type=int, default=int(1e6), help="replay buffer size")
     parser.add_argument("--lr", type=float, default=1e-4, help="learning rate for Adam optimizer")
