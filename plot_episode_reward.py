@@ -7,12 +7,15 @@ from collections import defaultdict
 import numpy as np
 import os, subprocess, sys
 
+aggregate_func = np.mean
+aggregate_func_meaning = 'If there are >1 file becasue you used path pattern, rewards belonging to the same episode is aggregrated by: ' + aggregate_func.__name__
+
 def main():
   parser = argparse.ArgumentParser('You must specify a model name for each file/file pattern. ' +
     'e.g. 23456.out Dqn 23486.out DqnWithGaze\n' + 
     '[path pattern is also supported]\n' +
-    'e.g. SaveDir/dqnHgaze_freezeGaze*/log.txt freezeGaze SaveDir/dqnHgaze_trainableGaze*/log.txt trainableGaze \n' +
-    'If there are >1 file becasue you used path pattern, rewards belonging to the same episode is aggregrated by np.mean().')
+    'e.g. SaveDir/dqnHgaze_freezeGaze*/log.txt freezeGaze SaveDir/dqnHgaze_trainableGaze*/log.txt trainableGaze \n' + aggregate_func_meaning)
+
   parser.add_argument('files_and_modelnames', metavar='files_and_modelnames_seperated_by_a_space', nargs = '+')
   args = parser.parse_args()
   assert len(args.files_and_modelnames)%2==0, \
@@ -28,7 +31,6 @@ def main():
     matched_files = subprocess.check_output("ls -R " + pattern, shell=True).decode('utf-8')
     print("The following files matched for model '%s':" % modelname)
     print(matched_files)
-    print("")
     matched_files = matched_files.split()
     concated_log.append([])
     for fname in matched_files:
@@ -36,6 +38,7 @@ def main():
       with open(fname, 'r') as f:
         concated_log[-1] += f.readlines() # readlines() returns a list
 
+  print(aggregate_func_meaning)
   color = iter(cm.rainbow(np.linspace(0,1,n/2)))
   for (log, modelname) in zip(concated_log, modelnames):
     myplot(log, next(color), modelname)
@@ -57,7 +60,7 @@ def myplot(log, color, modelname):
   x,y=[], []
   for (epi, rew_list) in epi_data.items():
     x.append(epi)
-    y.append(np.mean(rew_list))
+    y.append(aggregate_func(rew_list))
   plt.plot(x,y, c=color, label=modelname)
 
 def finalize_plot_and_show():
