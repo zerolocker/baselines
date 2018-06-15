@@ -231,7 +231,7 @@ if __name__ == '__main__':
                 fps_estimate = (float(steps_per_iter) / (float(iteration_time_est) + 1e-6)
                                 if steps_per_iter._value is not None else "calculating...")
                 logger.dump_tabular()
-                logger.log()
                 logger.log("ETA: " + pretty_eta(int(steps_left / fps_estimate)))
                 logger.log("FPS: %.2f" % fps_estimate)
+                logger.log(time.strftime("%Y-%m-%d %H:%M:%S %Z"))
                 logger.log()
