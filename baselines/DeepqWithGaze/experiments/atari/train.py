@@ -233,4 +233,5 @@ if __name__ == '__main__':
                 logger.dump_tabular()
                 logger.log()
                 logger.log("ETA: " + pretty_eta(int(steps_left / fps_estimate)))
+                logger.log("FPS: %.2f" % fps_estimate)
                 logger.log()
