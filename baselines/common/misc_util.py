@@ -395,7 +395,6 @@ def make_save_dir_and_log_basics(argdict):
         logger.configure(gflag.save_dir, format_strs=['log', 'stdout'])
         logger.logkvs(argdict)
         logger.dumpkvs()
-        logger.log("TODO  copy related py files to save_dir that constitutes a snapshot of code being run")
 
         # copy related py files to save_dir to generate a snapshot of code being run
         snapshot_dir = gflag.save_dir + "/all_py_files_snapshot/"
@@ -405,4 +404,12 @@ def make_save_dir_and_log_basics(argdict):
             os.makedirs(snapshot_dir + os.path.dirname(py_file), exist_ok=True)
             shutil.copyfile(py_file, snapshot_dir + py_file)
 
+def py3_import_model_by_filename(path):
+    logger.log("importing: " + path)
+    # import a file by path
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("module.name", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.model, module.dueling_model
 

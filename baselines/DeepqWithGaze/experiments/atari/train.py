@@ -17,11 +17,10 @@ from baselines.common.misc_util import (
     maybe_load_model,
     maybe_save_model,
     make_and_wrap_env,
-    make_save_dir_and_log_basics
+    make_save_dir_and_log_basics,
+    py3_import_model_by_filename
 )
 from baselines.common.schedules import LinearSchedule, PiecewiseSchedule
-from .model import model, dueling_model, KerasGazeModelFactory
-
 import matplotlib.pyplot as plt
 
 def parse_args():
@@ -54,6 +53,7 @@ def parse_args():
     boolean_flag(parser, "resumable", default=False, help="if true model was previously saved then training will be resumed; \
       also save training state (including huge replay buffer) so that training can be resumed")
     
+    parser.add_argument("--qfunc-model-filename", default=None, required=True, help="QFunc model arch file (e.g. experiments/atari/model.py). Available names are constantly changing as we experiment new models")
     boolean_flag(parser, "debug-mode", default=False, help="if true ad-hoc debug-related code will be run and training may stop halfway")
     boolean_flag(parser, "train-gaze", default=True, help="if false, gaze model weight will not be trained")
     args = parser.parse_args()
@@ -64,6 +64,7 @@ if __name__ == '__main__':
     args = parse_args()
     make_save_dir_and_log_basics(args.__dict__)
     MU.keras_model_serialization_bug_fix()
+    model, dueling_model = py3_import_model_by_filename(os.path.dirname(__file__) + "/" + args.qfunc_model_filename)
 
     env, monitored_env = make_and_wrap_env(args.env, args.seed)
     with U.make_session(4) as sess:
@@ -101,6 +102,7 @@ if __name__ == '__main__':
 
         U.initialize()
         gflag.gaze_models.initialze_weights_for_all_created_models()
+        gflag.qfunc_models.initialze_weights_for_all_created_models()
         update_target()
         num_iters = 0
 
@@ -166,6 +168,8 @@ if __name__ == '__main__':
                 write_summary_last_time = time.time()
                 summary = tensorboard_summary(np.array(obs)[None])
                 train_writer.add_summary(summary, num_iters)
+                logger.log("%s: writing to tensorboard takes %.2fs" % \
+                    (time.strftime("%Y-%m-%d %H:%M:%S %Z"), time.time()-write_summary_last_time))
 
             action = act(np.array(obs)[None], update_eps=update_eps, **kwargs)[0]
             reset = False

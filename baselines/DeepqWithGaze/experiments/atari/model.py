@@ -88,20 +88,23 @@ class QFuncModelFactory:
             model=Model(inputs=[imgs], outputs=[logits, x_intermediate])
             self.models[name] = model
         return self.models[name]
+        
+    def initialze_weights_for_all_created_models(self):
+        pass
 
 gflag.add_read_only('gaze_models', KerasGazeModelFactory())
 gflag.add_read_only('qfunc_models', QFuncModelFactory())
+logger.log("QFunc model filename is: " + __file__)
 
 def model(img_in, num_actions, scope, reuse=False, layer_norm=False, return_gaze=False):
-    """As described in https://storage.googleapis.com/deepmind-data/assets/papers/DeepMindNature14236Paper.pdf"""
     with tf.variable_scope(scope, reuse=reuse):
         gaze_model = gflag.gaze_models.get_or_create(scope, reuse)
         action_model = gflag.qfunc_models.get_or_create(gaze_model, scope, reuse, num_actions, layer_norm)
-        value_out, gaze  = action_model([img_in]) # [0] means the 1st output --- logits
+        value_out, gaze  = action_model([img_in])
 
         if gflag.debug_mode and scope=='q_func' and reuse==False:
             def tf_op_set_debug_tensor(x):
-                # TODO HACKY!: this violates and workarounds gflag's immutability, change this
+                # TODO HACKY!: this violates and bypasses gflag's immutability, change this
                 gflag._dict['debug_gaze_in'] = x  # line when I have more time to figure out a less hacky solution
                 return x
             debug_tensor = tf.py_func(tf_op_set_debug_tensor, [tf.concat([img_in, gaze], axis=-1)], [tf.float32], stateful=True, name='debug_tensor')
