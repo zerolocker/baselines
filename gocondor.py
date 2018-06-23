@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 import sys, re, os, subprocess, numpy as np, string, random, time
 
-def save_model_args(model_name):
+def save_model_args(model_name, randint):
   prefix = model_name+'_'+EXPR_NAME
-  return '--resumable --save-freq 50000 --save-dir SaveDir/%s_%s_%05d' % (
-        prefix,time.strftime("%b%d"),random.randint(0,100000))
+  return '--resumable --save-dir SaveDir/%s_%s_%05d' % (
+        prefix,time.strftime("%b%d"), randint)
 
-def create_bgrun_sh_dqnNature_noDoubleQ_model(GAME_NAME):
+def create_bgrun_sh_dqnNature_noDoubleQ_model(GAME_NAME, randint):
   sh_file_content = "" 
   for run_num in range(3):
     sh_file_content += ' '.join(['python3', '-m baselines.deepq.experiments.atari.train',
@@ -18,12 +18,12 @@ def create_bgrun_sh_dqnNature_noDoubleQ_model(GAME_NAME):
   sh_file_content += 'wait\n'
   return sh_file_content
 
-def create_bgrun_sh_DeepqWithGaze_noDoubleQ_model(GAME_NAME):
+def create_bgrun_sh_DeepqWithGaze_noDoubleQ_model(GAME_NAME, randint):
   sh_file_content = ""
   for run_num in range(1):
     sh_file_content += ' '.join(['python3', '-m baselines.DeepqWithGaze.experiments.atari.train',
       '--env', GAME_NAME, '--no-double-q',
-      save_model_args('dqnHgaze'),
+      save_model_args('dqnHgaze', randint),
       ] + OTHER_PARAMETERS_TO_PASS)
     sh_file_content += ' &\n'
   sh_file_content += 'wait\n'
@@ -97,11 +97,12 @@ else:
     if not os.path.exists(SH_FILE_DIR):
       os.makedirs(SH_FILE_DIR)
     for GAME_NAME in CHOSEN:
-        sh_file_content = bg_run_creator_func(fix_wrong_game_name(GAME_NAME))
+        randint = np.random.randint(65535)
+        sh_file_content = bg_run_creator_func(fix_wrong_game_name(GAME_NAME), randint)
         print(sh_file_content)
         raw_input('\nConfirm? Ctrl-C to quit.')
 
-        sh_filename = "%s/%s_bgrun_%s.sh" % (SH_FILE_DIR, GAME_NAME, np.random.randint(65535))
+        sh_filename = "%s/%s_%s_bgrun_%s.sh" % (SH_FILE_DIR, EXPR_NAME, GAME_NAME, randint)
         sh_f = open(sh_filename, 'w')
         sh_f.write(sh_file_content)
 
