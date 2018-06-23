@@ -3,7 +3,7 @@ import sys, re, os, subprocess, numpy as np, string, random, time
 
 def save_model_args(model_name):
   prefix = model_name+'_'+EXPR_NAME
-  return '--resumable --save-freq 50000 --save-dir SaveDir/%s_%s_%05d' % (
+  return '--resumable --save-dir SaveDir/%s_%s_%05d' % (
         prefix,time.strftime("%b%d"),random.randint(0,100000))
 
 def create_bgrun_sh_dqnNature_noDoubleQ_model(GAME_NAME):
@@ -101,7 +101,7 @@ else:
         print(sh_file_content)
         raw_input('\nConfirm? Ctrl-C to quit.')
 
-        sh_filename = "%s/%s_bgrun_%s.sh" % (SH_FILE_DIR, GAME_NAME, np.random.randint(65535))
+        sh_filename = "%s/%s_%s_bgrun_%s.sh" % (SH_FILE_DIR, EXPR_NAME, GAME_NAME, np.random.randint(65535))
         sh_f = open(sh_filename, 'w')
         sh_f.write(sh_file_content)
 
