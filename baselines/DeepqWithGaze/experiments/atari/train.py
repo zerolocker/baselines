@@ -186,7 +186,12 @@ if __name__ == '__main__':
                     num_iters % args.learning_freq == 0):
                 if num_iters % 10000 == 0:
                     logger.log("Norm of some weight before train op: ( to see if the Keras model is actually training )")
-                    logger.log("%s %s" % (np.linalg.norm(gflag.gaze_models.get('q_func').layers[-2].get_weights()[0]), np.linalg.norm(gflag.qfunc_models.get('q_func').layers[-1].get_weights()[0])))
+                    if hasattr(gflag.gaze_models.get('q_func'), 'interesting_layers'): # some model may not have this attribute
+                        w_gaze = {l.name : np.linalg.norm(l.get_weights()[0]) for l in gflag.gaze_models.get('q_func').interesting_layers}
+                        logger.log("gaze: %s" % w_gaze)
+                    if hasattr(gflag.qfunc_models.get('q_func'), 'interesting_layers'): # some model may not have this attribute
+                        w_qfunc = {l.name : np.linalg.norm(l.get_weights()[0]) for l in gflag.qfunc_models.get('q_func').interesting_layers}
+                        logger.log("qfunc: %s" % w_qfunc)
                 # Sample a bunch of transitions from replay buffer
                 if args.prioritized:
                     experience = replay_buffer.sample(args.batch_size, beta=beta_schedule.value(num_iters))

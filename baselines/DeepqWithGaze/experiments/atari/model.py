@@ -35,6 +35,7 @@ class KerasGazeModelFactory:
             logger.log("Gaze model named %s is created" % name)
             # Use compile=False to avoid loading optimizer state, because loading it adds tons of variables to the Graph in Tensorboard, making it ugly
             model = K.models.load_model(self.PATH, compile=False)
+            model.interesting_layers = [model.layers[-2]] # export variable interesting_layers for monitoring in train.py
             self.models[name] = model
         return self.models[name]
 
@@ -67,9 +68,12 @@ class QFuncModelFactory:
             x=imgs
             x=L.Multiply(name="img_mul_gaze")([x,g])
             x_intermediate=x
-            x=L.Conv2D(32, (8,8), strides=4, padding='same', activation="relu")(x)
-            x=L.Conv2D(64, (4,4), strides=2, padding='same', activation="relu")(x)
-            x=L.Conv2D(64, (3,3), strides=1, padding='same', activation="relu")(x)
+            c1=L.Conv2D(32, (8,8), strides=4, padding='same', activation="relu", name='mul_c1')
+            x=c1(x)
+            c2=L.Conv2D(64, (4,4), strides=2, padding='same', activation="relu", name='mul_c2')
+            x=c2(x)
+            c3=L.Conv2D(64, (3,3), strides=1, padding='same', activation="relu", name='mul_c3')
+            x=c3(x)
             # ============================ channel 2 ============================
             orig_x=imgs
             orig_x=L.Conv2D(32, (8,8), strides=4, padding='same', activation="relu")(orig_x)
@@ -83,9 +87,11 @@ class QFuncModelFactory:
                 logger.log("Warning: layer_norm is set to True, but Keras doesn't have it. Replacing with BatchNorm.")
                 x=L.BatchNormalization()(x)
             x=L.Activation('relu')(x)
-            logits=L.Dense(num_actions, name="logits")(x)
+            last_dense=L.Dense(num_actions, name="logits")
+            logits=last_dense(x)
 
             model=Model(inputs=[imgs], outputs=[logits, x_intermediate])
+            model.interesting_layers = [c1,c2,c3,last_dense] # export variable interesting_layers for monitoring in train.py
             self.models[name] = model
         return self.models[name]
         

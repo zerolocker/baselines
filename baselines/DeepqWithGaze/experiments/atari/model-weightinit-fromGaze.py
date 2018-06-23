@@ -53,15 +53,17 @@ class QFuncModelFactory:
             x=L.Conv2D(32, (8,8), strides=4, padding='same', activation="relu", name="conv2d_1")(x)
             x=L.Conv2D(64, (4,4), strides=2, padding='same', activation="relu", name="conv2d_2")(x)
             x=L.Conv2D(64, (3,3), strides=1, padding='same', activation="relu", name="conv2d_3")(x)
+            # TODO how to dynmaically freeze a layer during training?
             x=L.Flatten()(x)
             x=L.Dense(512)(x)
             if layer_norm:
                 logger.log("Warning: layer_norm is set to True, but Keras doesn't have it. Replacing with BatchNorm.")
                 x=L.BatchNormalization()(x)
             x=L.Activation('relu')(x)
-            logits=L.Dense(num_actions, name="logits")(x)
-
+            last_dense = L.Dense(num_actions, name="logits")
+            logits=last_dense(x)
             model=Model(inputs=[imgs], outputs=[logits])
+            model.interesting_layers = [last_dense] # export variable interesting_layers for monitoring in train.py
             self.models[name] = model
         return self.models[name]
 
