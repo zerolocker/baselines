@@ -79,17 +79,14 @@ gflag.add_read_only('gaze_models', KerasGazeModelFactory())
 gflag.add_read_only('qfunc_models', QFuncModelFactory())
 logger.log("QFunc model filename is: " + __file__)
 
-def model(img_in, num_actions, scope, reuse=False, layer_norm=False, return_gaze=False):
+def model(img_in, num_actions, scope, reuse=False, dueling=False, layer_norm=False, return_gaze=False):
     if return_gaze:  # no gaze available for this model file
         return img_in * 0.0;
+    assert dueling == False, "Not implemented yet"
 
     with tf.variable_scope(scope, reuse=reuse):
         gaze_model = gflag.gaze_models.get_or_create(scope, reuse)
         action_model = gflag.qfunc_models.get_or_create(scope, reuse, num_actions, layer_norm)
         value_out  = action_model([img_in])
         return value_out
-
-
-def dueling_model(img_in, num_actions, scope, reuse=False, layer_norm=False):
-    assert False, "not maintained because I was lazy; TODO: it should be the same as model() except for the dueling part."
 

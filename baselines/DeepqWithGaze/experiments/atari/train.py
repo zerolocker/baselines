@@ -64,7 +64,7 @@ if __name__ == '__main__':
     args = parse_args()
     make_save_dir_and_log_basics(args.__dict__)
     MU.keras_model_serialization_bug_fix()
-    model, dueling_model = py3_import_model_by_filename(os.path.dirname(__file__) + "/" + args.qfunc_model_filename)
+    model = py3_import_model_by_filename(os.path.dirname(__file__) + "/" + args.qfunc_model_filename)
 
     env, monitored_env = make_and_wrap_env(args.env, args.seed)
     with U.make_session(4) as sess:
@@ -72,8 +72,8 @@ if __name__ == '__main__':
         # pixel_mean_of_gaze_model_trainset = np.load("baselines/DeepqWithGaze/Img+OF_gazeModels/seaquest.mean.npy")
 
         def model_wrapper(img_in, num_actions, scope, **kwargs):
-            actual_model = dueling_model if args.dueling else model
-            return actual_model(img_in, num_actions, scope, layer_norm=args.layer_norm, **kwargs)
+            return model(img_in, num_actions, scope, layer_norm=args.layer_norm,
+                         dueling=args.dueling, **kwargs)
 
         act, train, update_target, debug, tensorboard_summary = DeepqWithGaze.build_train(
             make_obs_ph=lambda name: U.Uint8Input(env.observation_space.shape, name=name),

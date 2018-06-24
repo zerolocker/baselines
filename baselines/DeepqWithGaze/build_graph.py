@@ -104,7 +104,7 @@ def default_param_noise_filter(var):
     if var not in tf.trainable_variables():
         # We never perturb non-trainable vars.
         return False
-    if "fully_connected" in var.name:
+    if "fully_connected" in var.name or "dense" in var.name:
         # We perturb fully-connected layers.
         return True
 
@@ -281,7 +281,11 @@ def build_act_with_param_noise(make_obs_ph, q_func, num_actions, scope="DeepqWit
         ]
         act = U.function(inputs=[observations_ph, stochastic_ph, update_eps_ph, reset_ph, update_param_noise_threshold_ph, update_param_noise_scale_ph],
                          outputs=output_actions,
-                         givens={update_eps_ph: -1.0, stochastic_ph: True, reset_ph: False, update_param_noise_threshold_ph: False, update_param_noise_scale_ph: False},
+                         givens={
+                            update_eps_ph: -1.0, stochastic_ph: True, reset_ph: False,
+                            update_param_noise_threshold_ph: False, update_param_noise_scale_ph: False,
+                            K.backend.learning_phase(): 0
+                         },
                          updates=updates)
         return act
 

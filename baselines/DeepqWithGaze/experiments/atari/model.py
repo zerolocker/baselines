@@ -52,7 +52,7 @@ class QFuncModelFactory:
     def get(self, name):
         return self.models[name]
 
-    def get_or_create(self, gaze_model, name, reuse, num_actions, layer_norm):
+    def get_or_create(self, gaze_model, name, reuse, num_actions, layer_norm, dueling):
         if name in self.models:
             assert reuse == True
             logger.log("QFunc model named %s is reused" % name)
@@ -82,15 +82,25 @@ class QFuncModelFactory:
 
             x=L.Average()([x,orig_x])
             x=L.Flatten()(x)
-            x=L.Dense(512)(x)
+            if dueling:
+                state_score = L.Dense(512)(x)
+                if layer_norm:
+                   state_score=L.BatchNormalization()(state_score)
+                state_score = L.Activation('relu')(state_score)
+                state_score = L.Dense(1)(state_score)
+            action_score = L.Dense(512)(x)
             if layer_norm:
                 logger.log("Warning: layer_norm is set to True, but Keras doesn't have it. Replacing with BatchNorm.")
-                x=L.BatchNormalization()(x)
-            x=L.Activation('relu')(x)
+                action_score=L.BatchNormalization()(action_score)
+            action_score=L.Activation('relu')(action_score)
             last_dense=L.Dense(num_actions, name="logits")
-            logits=last_dense(x)
-
-            model=Model(inputs=[imgs], outputs=[logits, x_intermediate])
+            action_score=last_dense(action_score)
+            if dueling:
+                def wrapped_tf_ops(s):
+                    action_score, state_score = s
+                    return action_score - tf.reduce_mean(action_score, 1, keep_dims=True) + state_score
+                action_score = L.Lambda(wrapped_tf_ops)([action_score, state_score])
+            model=Model(inputs=[imgs], outputs=[action_score, x_intermediate])
             model.interesting_layers = [c1,c2,c3,last_dense] # export variable interesting_layers for monitoring in train.py
             self.models[name] = model
         return self.models[name]
@@ -102,10 +112,10 @@ gflag.add_read_only('gaze_models', KerasGazeModelFactory())
 gflag.add_read_only('qfunc_models', QFuncModelFactory())
 logger.log("QFunc model filename is: " + __file__)
 
-def model(img_in, num_actions, scope, reuse=False, layer_norm=False, return_gaze=False):
+def model(img_in, num_actions, scope, reuse=False, layer_norm=False, dueling=False, return_gaze=False):
     with tf.variable_scope(scope, reuse=reuse):
         gaze_model = gflag.gaze_models.get_or_create(scope, reuse)
-        action_model = gflag.qfunc_models.get_or_create(gaze_model, scope, reuse, num_actions, layer_norm)
+        action_model = gflag.qfunc_models.get_or_create(gaze_model, scope, reuse, num_actions, layer_norm, dueling)
         value_out, gaze  = action_model([img_in])
 
         if gflag.debug_mode and scope=='q_func' and reuse==False:
@@ -118,34 +128,3 @@ def model(img_in, num_actions, scope, reuse=False, layer_norm=False, return_gaze
                 value_out = tf.identity(value_out)
 
         return value_out if not return_gaze else gaze
-
-
-def dueling_model(img_in, num_actions, scope, reuse=False, layer_norm=False):
-    """As described in https://arxiv.org/abs/1511.06581"""
-    assert False, "not maintained because I was lazy; TODO: it should be the same as model() except for the dueling part."
-    with tf.variable_scope(scope, reuse=reuse):
-        out = img_in
-        with tf.variable_scope("convnet"):
-            # original architecture
-            out = layers.convolution2d(out, num_outputs=32, kernel_size=8, stride=4, activation_fn=tf.nn.relu)
-            out = layers.convolution2d(out, num_outputs=64, kernel_size=4, stride=2, activation_fn=tf.nn.relu)
-            out = layers.convolution2d(out, num_outputs=64, kernel_size=3, stride=1, activation_fn=tf.nn.relu)
-        conv_out = layers.flatten(out)
-
-        with tf.variable_scope("state_value"):
-            state_hidden = layers.fully_connected(conv_out, num_outputs=512, activation_fn=None)
-            if layer_norm:
-                state_hidden = layer_norm_fn(state_hidden, relu=True)
-            else:
-                state_hidden = tf.nn.relu(state_hidden)
-            state_score = layers.fully_connected(state_hidden, num_outputs=1, activation_fn=None)
-        with tf.variable_scope("action_value"):
-            actions_hidden = layers.fully_connected(conv_out, num_outputs=512, activation_fn=None)
-            if layer_norm:
-                actions_hidden = layer_norm_fn(actions_hidden, relu=True)
-            else:
-                actions_hidden = tf.nn.relu(actions_hidden)
-            action_scores = layers.fully_connected(actions_hidden, num_outputs=num_actions, activation_fn=None)
-            action_scores_mean = tf.reduce_mean(action_scores, 1)
-            action_scores = action_scores - tf.expand_dims(action_scores_mean, 1)
-        return state_score + action_scores

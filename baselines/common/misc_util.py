@@ -411,5 +411,5 @@ def py3_import_model_by_filename(path):
     spec = importlib.util.spec_from_file_location("module.name", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.model, module.dueling_model
+    return module.model
 
