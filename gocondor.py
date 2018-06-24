@@ -29,6 +29,16 @@ def create_bgrun_sh_DeepqWithGaze_noDoubleQ_model(GAME_NAME, randint):
   sh_file_content += 'wait\n'
   return sh_file_content
 
+def create_bgrun_sh_dqnNature_Opt_model(GAME_NAME, randint):
+  sh_file_content = "" 
+  for run_num in range(1):
+    sh_file_content += ' '.join(['python3', '-m baselines.deepq.experiments.atari.train',
+      '--env', GAME_NAME, '--double-q', '--dueling', '--param-noise', '--prioritized', '--layer-norm'] + OTHER_PARAMETERS_TO_PASS)
+       
+    sh_file_content += ' &\n'
+  sh_file_content += 'wait\n'
+  return sh_file_content
+
 def create_bgrun_sh_DeepqWithGaze_Opt_model(GAME_NAME, randint):
   sh_file_content = ""
   for run_num in range(1):
@@ -60,7 +70,8 @@ ALL_GAME_NAMES=[
 MODEL_SH_MAPPING = {
         "dqnNature_noDoubleQ": create_bgrun_sh_dqnNature_noDoubleQ_model,
         "DeepqWithGaze_noDoubleQ": create_bgrun_sh_DeepqWithGaze_noDoubleQ_model,
-        "DeepqWithGaze_Opt": create_bgrun_sh_DeepqWithGaze_Opt_model,
+        "DeepqWithGaze_opt": create_bgrun_sh_DeepqWithGaze_Opt_model,
+        "dqnNature_opt": create_bgrun_sh_dqnNature_Opt_model
         }
 
 if len(sys.argv) < 4:
