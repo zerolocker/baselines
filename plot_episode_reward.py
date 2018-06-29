@@ -27,7 +27,10 @@ def main():
 
   # concatenate all log files into a python list, grouped by model name
   concated_log = []
-  for (pattern, modelname) in zip(files_pattern, modelnames):
+  for (i, (pattern, modelname)) in enumerate(zip(files_pattern, modelnames)):
+    if modelname == '__':
+      modelnames[i] = os.path.basename(pattern)
+      modelname = os.path.basename(pattern)
     matched_files = subprocess.check_output("ls -R " + pattern, shell=True).decode('utf-8')
     print("The following files matched for model '%s':" % modelname)
     print(matched_files)
