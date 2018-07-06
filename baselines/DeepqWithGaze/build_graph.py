@@ -359,6 +359,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, train_gaze, grad_no
         obs_tp1_input = U.ensure_tf_input(make_obs_ph("obs_tp1"))
         done_mask_ph = tf.placeholder(tf.float32, [None], name="done")
         importance_weights_ph = tf.placeholder(tf.float32, [None], name="weight")
+        initial_freeze_phase_ph = tf.placeholder(tf.bool, (), name="initial_freeze_phase")
 
         # q network evaluation
         q_t = q_func(obs_t_input.get(), num_actions, scope="q_func", reuse=True)  # reuse parameters from act
@@ -391,13 +392,24 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, train_gaze, grad_no
         weighted_error = tf.reduce_mean(importance_weights_ph * errors)
 
         # compute optimization op (potentially with gradient clipping)
+        initial_freeze_weights = gflag.qfunc_models.get_weight_names_for_initial_freeze(model_name="q_func")
+        q_func_trainable_vars_for_initial_freeze = list(filter(
+            lambda w: w.name not in initial_freeze_weights, q_func_trainable_vars))
         if grad_norm_clipping is not None:
-            optimize_expr = U.minimize_and_clip(optimizer,
+            optimize_expr_for_initial_freeze = lambda: U.minimize_and_clip(optimizer,
+                                                weighted_error,
+                                                var_list=q_func_trainable_vars_for_initial_freeze,
+                                                clip_val=grad_norm_clipping)
+            optimize_expr_after_freeze = lambda: U.minimize_and_clip(optimizer,
                                                 weighted_error,
                                                 var_list=q_func_trainable_vars,
                                                 clip_val=grad_norm_clipping)
         else:
-            optimize_expr = optimizer.minimize(weighted_error, var_list=q_func_trainable_vars)
+            # must put the operation under lambda, if you fully read tf.cond()'s documentation
+            optimize_expr_for_initial_freeze = lambda: optimizer.minimize(weighted_error, var_list=q_func_trainable_vars_for_initial_freeze)
+            optimize_expr_after_freeze = lambda: optimizer.minimize(weighted_error, var_list=q_func_trainable_vars)
+        optimize_expr = tf.cond(initial_freeze_phase_ph, optimize_expr_for_initial_freeze, optimize_expr_after_freeze)
+
 
         # update_target_fn will be called periodically to copy Q network to target Q network
         update_target_expr = []
@@ -414,7 +426,8 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, train_gaze, grad_no
                 rew_t_ph,
                 obs_tp1_input,
                 done_mask_ph,
-                importance_weights_ph
+                importance_weights_ph,
+                initial_freeze_phase_ph,
             ],
             outputs=td_error,
             updates=[optimize_expr],

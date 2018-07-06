@@ -54,6 +54,7 @@ def parse_args():
       also save training state (including huge replay buffer) so that training can be resumed")
     
     parser.add_argument("--qfunc-model-filename", default=None, required=True, help="QFunc model arch file (e.g. experiments/atari/model.py). Available names are constantly changing as we experiment new models")
+    parser.add_argument("--init-freeze-iter", type=int, default=0, required=False, help="num_iter before which the weights of the pre-initialized layers is frozen")
     boolean_flag(parser, "debug-mode", default=False, help="if true ad-hoc debug-related code will be run and training may stop halfway")
     boolean_flag(parser, "train-gaze", default=True, help="if false, gaze model weight will not be trained")
     args = parser.parse_args()
@@ -182,16 +183,17 @@ if __name__ == '__main__':
                 obs = env.reset()
                 reset = True
 
+            if num_iters % 10000 == 0:
+                logger.log("Norm of some weights: ( to see if the Keras model is actually training )")
+                if hasattr(gflag.gaze_models.get('q_func'), 'interesting_layers'): # some model may not have this attribute
+                    w_gaze = {l.name : np.linalg.norm(l.get_weights()[0]) for l in gflag.gaze_models.get('q_func').interesting_layers}
+                    logger.log("gaze: %s" % w_gaze)
+                if hasattr(gflag.qfunc_models.get('q_func'), 'interesting_layers'): # some model may not have this attribute
+                    w_qfunc = {l.name : np.linalg.norm(l.get_weights()[0]) for l in gflag.qfunc_models.get('q_func').interesting_layers}
+                    logger.log("qfunc: %s" % w_qfunc)
+
             if (num_iters > max(5 * args.batch_size, args.replay_buffer_size // 20) and
                     num_iters % args.learning_freq == 0):
-                if num_iters % 10000 == 0:
-                    logger.log("Norm of some weight before train op: ( to see if the Keras model is actually training )")
-                    if hasattr(gflag.gaze_models.get('q_func'), 'interesting_layers'): # some model may not have this attribute
-                        w_gaze = {l.name : np.linalg.norm(l.get_weights()[0]) for l in gflag.gaze_models.get('q_func').interesting_layers}
-                        logger.log("gaze: %s" % w_gaze)
-                    if hasattr(gflag.qfunc_models.get('q_func'), 'interesting_layers'): # some model may not have this attribute
-                        w_qfunc = {l.name : np.linalg.norm(l.get_weights()[0]) for l in gflag.qfunc_models.get('q_func').interesting_layers}
-                        logger.log("qfunc: %s" % w_qfunc)
                 # Sample a bunch of transitions from replay buffer
                 if args.prioritized:
                     experience = replay_buffer.sample(args.batch_size, beta=beta_schedule.value(num_iters))
@@ -200,7 +202,7 @@ if __name__ == '__main__':
                     obses_t, actions, rewards, obses_tp1, dones = replay_buffer.sample(args.batch_size)
                     weights = np.ones_like(rewards)
                 # Minimize the error in Bellman's equation and compute TD-error
-                td_errors = train(obses_t, actions, rewards, obses_tp1, dones, weights)
+                td_errors = train(obses_t, actions, rewards, obses_tp1, dones, weights, num_iters<args.init_freeze_iter)
                 # Update the priorities in the replay buffer
                 if args.prioritized:
                     new_priorities = np.abs(td_errors) + args.prioritized_eps

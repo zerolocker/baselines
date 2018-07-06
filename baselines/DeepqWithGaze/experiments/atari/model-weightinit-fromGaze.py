@@ -37,6 +37,8 @@ class QFuncModelFactory:
         self.models = {}
         # Use compile=False to avoid loading optimizer state, because loading it adds tons of variables to the Graph in Tensorboard, making it ugly
         self.gaze_model_template = K.models.load_model(self.GAZE_PRETRAIN_PATH, compile=False)
+        self.layers_to_init = ['conv2d_1', 'conv2d_2', 'conv2d_3',\
+         'batch_normalization_1', 'batch_normalization_2', 'batch_normalization_3', 'batch_normalization_4']
 
     def get(self, name):
         return self.models[name]
@@ -50,9 +52,14 @@ class QFuncModelFactory:
             assert reuse == False
             imgs=L.Input(shape=(84,84,4))
             x=imgs
-            x=L.Conv2D(32, (8,8), strides=4, padding='same', activation="relu", name="conv2d_1")(x)
+            x=L.BatchNormalization(name="batch_normalization_1")(x)
+            conv2d_1=L.Conv2D(32, (8,8), strides=4, padding='same', activation="relu", name="conv2d_1")
+            x=conv2d_1(x)
+            x=L.BatchNormalization(name="batch_normalization_2")(x)
             x=L.Conv2D(64, (4,4), strides=2, padding='same', activation="relu", name="conv2d_2")(x)
+            x=L.BatchNormalization(name="batch_normalization_3")(x)
             x=L.Conv2D(64, (3,3), strides=1, padding='same', activation="relu", name="conv2d_3")(x)
+            x=L.BatchNormalization(name="batch_normalization_4")(x)
             # TODO how to dynmaically freeze a layer during training?
             x=L.Flatten()(x)
             x=L.Dense(512)(x)
@@ -63,17 +70,23 @@ class QFuncModelFactory:
             last_dense = L.Dense(num_actions, name="logits")
             logits=last_dense(x)
             model=Model(inputs=[imgs], outputs=[logits])
-            model.interesting_layers = [last_dense] # export variable interesting_layers for monitoring in train.py
+            model.interesting_layers = [conv2d_1, last_dense] # export variable interesting_layers for monitoring in train.py
             self.models[name] = model
         return self.models[name]
 
     def initialze_weights_for_all_created_models(self):
-        layers_to_init = ['conv2d_1', 'conv2d_2', 'conv2d_3']
         for model in self.models.values():
-            for layer_name in layers_to_init:
+            for layer_name in self.layers_to_init:
                 W = self.gaze_model_template.get_layer(layer_name).get_weights()
                 model.get_layer(layer_name).set_weights(W)
 
+    def get_weight_names_for_initial_freeze(self, model_name):
+        model = self.get(model_name)
+        layers_to_initially_freeze = [l for l in model.layers if l.name in self.layers_to_init]
+        weight_names = []
+        for l in layers_to_initially_freeze:
+            weight_names += [w.name for w in l.trainable_weights]
+        return weight_names
 
 gflag.add_read_only('gaze_models', KerasGazeModelFactory())
 gflag.add_read_only('qfunc_models', QFuncModelFactory())

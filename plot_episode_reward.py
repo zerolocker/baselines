@@ -6,6 +6,7 @@ import argparse, re
 from collections import defaultdict
 import numpy as np
 import os, subprocess, sys
+from IPython import embed
 
 aggregate_func = np.mean
 aggregate_func_meaning = 'If there are >1 file becasue you used path pattern, rewards belonging to the same episode is aggregrated by: ' + aggregate_func.__name__
@@ -45,6 +46,7 @@ def main():
   color = iter(cm.rainbow(np.linspace(0,1,n/2)))
   for (log, modelname) in zip(concated_log, modelnames):
     myplot(log, next(color), modelname)
+    print_initial_freeze_phase_last_episode_if_exists(modelname, log)
   finalize_plot_and_show()
 
 def myplot(log, color, modelname):
@@ -71,6 +73,26 @@ def finalize_plot_and_show():
   plt.ylabel("Reward")
   plt.legend(loc='upper left')
   plt.show()
+
+def print_initial_freeze_phase_last_episode_if_exists(modelname, log):
+    INIT_FREEZE_ITER_REGEX = re.compile(r'\| init_freeze_iter\ +\| (\d+)')
+    init_freeze_iter = None
+    for line in log[:1000]: # if the "argument table" dump exists, it must be at the first 1000 line
+        if init_freeze_iter is None and INIT_FREEZE_ITER_REGEX.match(line):
+            init_freeze_iter = int(INIT_FREEZE_ITER_REGEX.match(line).group(1))
+    if init_freeze_iter is None:
+        return
+    embed()
+    EPI_REGEX = re.compile(r'\| episodes              \| (\d+)')
+    ITER_REGEX = re.compile(r'\| iters\ +\| (\d+)')
+    for line in log:
+        if EPI_REGEX.match(line):
+            episode = int(EPI_REGEX.match(line).group(1))
+        if ITER_REGEX.match(line):
+            iter = int(ITER_REGEX.match(line).group(1))
+            if iter > init_freeze_iter:
+                print("[auxiliary info] modelname: %s iter_freeze_iter: %d initial_freeze_phase_last_episode: %d" % (modelname, init_freeze_iter, episode))
+                return
 
 
 if __name__ == '__main__':
