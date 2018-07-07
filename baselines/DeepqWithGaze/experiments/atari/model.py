@@ -46,8 +46,6 @@ class KerasGazeModelFactory:
 class QFuncModelFactory:
     def __init__(self):
         self.models = {}
-        # Use compile=False to avoid loading optimizer state, because loading it adds tons of variables to the Graph in Tensorboard, making it ugly
-        # self.gaze_model_template = K.models.load_model(self.PATH, compile=False)
 
     def get(self, name):
         return self.models[name]
@@ -67,7 +65,6 @@ class QFuncModelFactory:
 
             x=imgs
             x=L.Multiply(name="img_mul_gaze")([x,g])
-            x_intermediate=x
             c1=L.Conv2D(32, (8,8), strides=4, padding='same', activation="relu", name='mul_c1')
             x=c1(x)
             c2=L.Conv2D(64, (4,4), strides=2, padding='same', activation="relu", name='mul_c2')
@@ -100,7 +97,7 @@ class QFuncModelFactory:
                     action_score, state_score = s
                     return action_score - tf.reduce_mean(action_score, 1, keep_dims=True) + state_score
                 action_score = L.Lambda(wrapped_tf_ops)([action_score, state_score])
-            model=Model(inputs=[imgs], outputs=[action_score, x_intermediate])
+            model=Model(inputs=[imgs], outputs=[action_score, gaze_heatmaps])
             model.interesting_layers = [c1,c2,c3,last_dense] # export variable interesting_layers for monitoring in train.py
             self.models[name] = model
         return self.models[name]
