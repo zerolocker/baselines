@@ -82,7 +82,6 @@ def print_initial_freeze_phase_last_episode_if_exists(modelname, log):
             init_freeze_iter = int(INIT_FREEZE_ITER_REGEX.match(line).group(1))
     if init_freeze_iter is None:
         return
-    embed()
     EPI_REGEX = re.compile(r'\| episodes              \| (\d+)')
     ITER_REGEX = re.compile(r'\| iters\ +\| (\d+)')
     for line in log:
