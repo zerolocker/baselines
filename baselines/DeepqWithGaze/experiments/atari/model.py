@@ -105,6 +105,9 @@ class QFuncModelFactory:
     def initialze_weights_for_all_created_models(self):
         pass
 
+    def get_weight_names_for_initial_freeze(self, model_name):
+        return []
+
 gflag.add_read_only('gaze_models', KerasGazeModelFactory())
 gflag.add_read_only('qfunc_models', QFuncModelFactory())
 logger.log("QFunc model filename is: " + __file__)
