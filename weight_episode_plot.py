@@ -36,7 +36,9 @@ def main():
 def myplot(log, color_iterator, modelname, reward_ax, norm_ax):
   EPI_REGEX = re.compile(r'\| episodes              \| (\d+)')
   REWARD_REGEX = re.compile(r'\| reward \(100 epi mean\) \| ([\d\.e\+\-]+)')
-  W_NORM_REGEX = re.compile(r'([+-]?[\d\.e]+) ([+-]?[\d\.e\+\-]+)')
+  GAZE_NORM_REGEX = re.compile(r'gaze: (.*)')
+  QFUNC_NORM_REGEX = re.compile(r'qfunc: (.*)')
+  warn_shown = False
 
   epi_reward = dict()
   epi_norm = defaultdict(dict)
@@ -44,12 +46,23 @@ def myplot(log, color_iterator, modelname, reward_ax, norm_ax):
   for line in log:
     if EPI_REGEX.match(line):
       episode = int(EPI_REGEX.match(line).group(1))
+    
     if REWARD_REGEX.match(line):
       epi_reward[episode]=float(REWARD_REGEX.match(line).group(1))
-    if W_NORM_REGEX.match(line):
-      gaze_W_norm, qfunc_W_norm = W_NORM_REGEX.match(line).groups()
-      epi_norm[episode]['gaze']= float(gaze_W_norm)
-      epi_norm[episode]['qfunc']= float(qfunc_W_norm)
+    
+    if GAZE_NORM_REGEX.match(line):
+      evaled_dict = eval(GAZE_NORM_REGEX.match(line).group(1))
+      if len(evaled_dict.items()) > 1 and not warn_shown:
+        print("WARNING: Found >1 key, but only the 1st one will be plot. Keys found: %s" % evaled_dict.keys())
+        warn_shown = True
+      epi_norm[episode]['gaze'] = sorted(evaled_dict.items())[0][1] # always extract the first key
+    
+    if QFUNC_NORM_REGEX.match(line):
+      evaled_dict = eval(QFUNC_NORM_REGEX.match(line).group(1))
+      if len(evaled_dict.items()) > 1 and not warn_shown:
+        print("WARNING: Found >1 key, but only the 1st one will be plot. Keys found: %s" % evaled_dict.keys())
+        warn_shown = True
+      epi_norm[episode]['qfunc'] = sorted(evaled_dict.items())[0][1] # always extract the first key
 
   x_rewardplot,y_reward, x_normplot,y_gaze_norm,y_qfunc_norm = [], [], [], [], []
   for (epi, rew) in epi_reward.items():
@@ -57,11 +70,13 @@ def myplot(log, color_iterator, modelname, reward_ax, norm_ax):
     y_reward.append(rew)
   for (epi, norm) in sorted(epi_norm.items()):
     x_normplot.append(epi)
-    y_gaze_norm.append(norm['gaze'])
+    if 'gaze' in norm: # some model doesn't have gaze model, so first check if key 'gaze' exists 
+      y_gaze_norm.append(norm['gaze'])
     y_qfunc_norm.append(norm['qfunc'])
 
   reward_ax.plot(x_rewardplot,y_reward, c=next(color_iterator), label=modelname)
-  norm_ax.plot(x_normplot, y_gaze_norm, c=next(color_iterator), label=modelname+' gaze_W_norm')
+  if y_gaze_norm: # some model doesn't have gaze model so y_gaze_norm will be empty
+    norm_ax.plot(x_normplot, y_gaze_norm, c=next(color_iterator), label=modelname+' gaze_W_norm')
   norm_ax.plot(x_normplot, y_qfunc_norm, c=next(color_iterator), label=modelname+' qfunc_W_norm')
 
 def finalize_plot_and_show(ax1, ax2):
