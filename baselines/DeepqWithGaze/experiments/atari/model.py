@@ -59,9 +59,10 @@ class QFuncModelFactory:
             assert reuse == False
             imgs=L.Input(shape=(84,84,4))
 
-            gaze_heatmaps = gaze_model(imgs)
+            g = gaze_model(imgs)
+            gaze_heatmaps = L.Lambda(lambda x:
+                (x-tf.reduce_min(x,[1,2,3],True))/(tf.reduce_max(x,[1,2,3],True)-tf.reduce_min(x,[1,2,3],True)))(g)
             g=gaze_heatmaps
-            g=L.BatchNormalization()(g) # With this, gaze_model's gradient input is 50x larger; otherwise it won't train
 
             x=imgs
             x=L.Multiply(name="img_mul_gaze")([x,g])
