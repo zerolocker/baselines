@@ -6,11 +6,11 @@ def save_model_args(model_name, randint):
   return '--resumable --save-dir SaveDir/%s_%s_%05d' % (
         prefix,time.strftime("%b%d"), randint)
 
-def create_bgrun_sh_dqnNature_noDoubleQ_model(GAME_NAME, randint):
+def create_bgrun_sh_dqnNature_model(GAME_NAME, randint):
   sh_file_content = "" 
   for run_num in range(3):
     sh_file_content += ' '.join(['python3', '-m baselines.deepq.experiments.atari.train',
-      '--env', GAME_NAME, '--no-double-q',
+      '--env', GAME_NAME, '--seed', str(randint),
       # save_model_args('dqn'), # commented because I've not yest tested if deepq/.../train.py works well with --save-dir, but saving model is not very important for now. I'll just leave it commented. Maybe test it in the future.
        ] + OTHER_PARAMETERS_TO_PASS)
        
@@ -18,33 +18,12 @@ def create_bgrun_sh_dqnNature_noDoubleQ_model(GAME_NAME, randint):
   sh_file_content += 'wait\n'
   return sh_file_content
 
-def create_bgrun_sh_DeepqWithGaze_noDoubleQ_model(GAME_NAME, randint):
+def create_bgrun_sh_DeepqWithGaze_model(GAME_NAME, randint):
   sh_file_content = ""
   for run_num in range(1):
     sh_file_content += ' '.join(['python3', '-m baselines.DeepqWithGaze.experiments.atari.train',
-      '--env', GAME_NAME, '--no-double-q',
+      '--env', GAME_NAME, '--seed', str(randint),
       save_model_args('dqnHgaze', randint),
-      ] + OTHER_PARAMETERS_TO_PASS)
-    sh_file_content += ' &\n'
-  sh_file_content += 'wait\n'
-  return sh_file_content
-
-def create_bgrun_sh_dqnNature_Opt_model(GAME_NAME, randint):
-  sh_file_content = "" 
-  for run_num in range(1):
-    sh_file_content += ' '.join(['python3', '-m baselines.deepq.experiments.atari.train',
-      '--env', GAME_NAME] + OTHER_PARAMETERS_TO_PASS)
-       
-    sh_file_content += ' &\n'
-  sh_file_content += 'wait\n'
-  return sh_file_content
-
-def create_bgrun_sh_DeepqWithGaze_Opt_model(GAME_NAME, randint):
-  sh_file_content = ""
-  for run_num in range(1):
-    sh_file_content += ' '.join(['python3', '-m baselines.DeepqWithGaze.experiments.atari.train',
-      '--env', GAME_NAME,
-      save_model_args('dqnHgazeOpt', randint),
       ] + OTHER_PARAMETERS_TO_PASS)
     sh_file_content += ' &\n'
   sh_file_content += 'wait\n'
@@ -68,10 +47,8 @@ ALL_GAME_NAMES=[
 ]
 
 MODEL_SH_MAPPING = {
-        "dqnNature_noDoubleQ": create_bgrun_sh_dqnNature_noDoubleQ_model,
-        "DeepqWithGaze_noDoubleQ": create_bgrun_sh_DeepqWithGaze_noDoubleQ_model,
-        "DeepqWithGaze_opt": create_bgrun_sh_DeepqWithGaze_Opt_model,
-        "dqnNature_opt": create_bgrun_sh_dqnNature_Opt_model
+        "dqnNature": create_bgrun_sh_dqnNature_model,
+        "DeepqWithGaze": create_bgrun_sh_DeepqWithGaze_model,
         }
 
 if len(sys.argv) < 4:
