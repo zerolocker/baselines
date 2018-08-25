@@ -399,7 +399,8 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, train_gaze, grad_no
             optimize_expr_for_initial_freeze = lambda: U.minimize_and_clip(optimizer,
                                                 weighted_error,
                                                 var_list=q_func_trainable_vars_for_initial_freeze,
-                                                clip_val=grad_norm_clipping)
+                                                clip_val=grad_norm_clipping) \
+                                            if q_func_trainable_vars_for_initial_freeze else tf.no_op()
             optimize_expr_after_freeze = lambda: U.minimize_and_clip(optimizer,
                                                 weighted_error,
                                                 var_list=q_func_trainable_vars,
